@@ -1,0 +1,1022 @@
+---
+title: "Rapport de suivi"
+subtitle: "`r paste0('Du ', params$rapport_debut, ' au ', params$rapport_fin)`"
+output:
+    html_document:
+      toc: true
+      toc_float: true
+      toc_depth: 3
+params:
+  rejet_proj_dir: ""
+  workspace: ""
+  main_file_dta: ""
+  rapport_debut: ""
+  rapport_fin: ""
+  sup_exclus: ""
+---
+
+```{r knitr_options, include = FALSE, echo = FALSE, warning = FALSE, message = FALSE}
+
+# knitr options
+knitr::opts_chunk$set(
+	echo = FALSE, 
+	warning = FALSE,
+	message = FALSE,
+	out.width = '100%')
+
+```
+
+```{r set_folders}
+# data
+data_dir <- paste0(params$rejet_proj_dir, "data/") # /data/
+resource_dir <- paste0(data_dir, "00_resource/")  # /00_resource/
+download_dir <- paste0(data_dir, "01_downloaded/")  # /01_downloaded/
+combined_dir <- paste0(data_dir, "02_combined/")  # /02_combined/
+derived_dir <- paste0(data_dir, "03_derived/")   # /03_derived/
+
+# outputs
+output_dir <- paste0(params$rejet_proj_dir, "output/")    # /output/
+
+statuses_to_reject <- c(100, 120)
+```
+
+```{r load_libraries}
+# load necessary libraries where functions may not have namespace indicated
+library(dplyr) # need %>%
+library(lubridate) # need %within%
+library(reactable) # might have functions used without namespace
+```
+
+```{css}
+
+h1 {
+    color: #0F2B1D;
+}
+
+h2 {
+    color: #516A5D;
+}
+
+```
+
+```{r define_functions}
+#' Replace `NaN` and `Inf` with `NA_real_`
+#' 
+#' Replace NaN, which results from division by 0, with NA. This makes data destined for tables easier to handle.
+#' 
+#' @param df Data frame
+#' 
+#' @importFrom dplyr `%>%` mutate across 
+replace_nan_inf <- function(df) {
+
+    df %>%
+    dplyr::mutate(
+        dplyr::across(
+            .cols = where(is.numeric),
+            # note: using base::ifelse() rather than dplyr::if_else() to avoid type issues
+            .fns = ~ ifelse(
+                test = is.nan(.x), 
+                yes = NA_real_,
+                no = .x
+            )
+        ),
+        dplyr::across(
+            .cols = where(is.numeric),
+            .fns = ~ ifelse(
+                test = is.infinite(.x), 
+                yes = NA_real_,
+                no = .x
+            )
+        )
+    )
+
+}
+
+#' Apply style to tables
+#' 
+#' Apply styles from `gt::tab_options()` to tables
+#' 
+#' @param df Data frame
+#' @param heading_color Character. Hex color for table header background color.
+#' @param column_label_color Character. Hex color for column label background color.
+#' @param row_group_color  Character. Hex color for row group background color.
+#' 
+#' @export 
+style_table <- function(
+    df, 
+    heading_color = "#0F2B1D",
+    column_label_color = "#264535",
+    row_group_color = "#516A5D"
+) {
+
+    df %>%
+    # apply colors to header, column labels, and row groups
+    gt::tab_options(
+        heading.background.color = heading_color,
+        column_labels.background.color = column_label_color,
+        row_group.background.color = row_group_color
+    ) %>%
+    # replace NA with ---
+    gt::fmt_missing(columns = everything())
+
+}
+
+flag_calories_low_high <- function(
+    df,
+    low_color = "orange",
+    high_color = "red"
+) {
+
+    df %>%
+    # styling for low values
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = low_color)
+        ),
+        locations = gt::cells_body(
+            columns = minimum,
+            rows = minimum < 800
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = low_color)
+        ),
+        locations = gt::cells_body(
+            columns = lower_hinge,
+            rows = lower_hinge < 800
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = low_color)
+        ),
+        locations = gt::cells_body(
+            columns = median,
+            rows = median < 800
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = low_color)
+        ),
+        locations = gt::cells_body(
+            columns = upper_hinge,
+            rows = upper_hinge < 800
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = low_color)
+        ),
+        locations = gt::cells_body(
+            columns = maximum,
+            rows = maximum < 800
+        )
+    ) %>%
+    # styling for higher values
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = high_color)
+        ),
+        locations = gt::cells_body(
+            columns = minimum,
+            rows = minimum >= 4000
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = high_color)
+        ),
+        locations = gt::cells_body(
+            columns = lower_hinge,
+            rows = lower_hinge >= 4000
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = high_color)
+        ),
+        locations = gt::cells_body(
+            columns = median,
+            rows = median >= 4000
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = high_color)
+        ),
+        locations = gt::cells_body(
+            columns = upper_hinge,
+            rows = upper_hinge >= 4000
+        )
+    ) %>%
+    gt::tab_style(
+        style = list(
+            gt::cell_text(color = high_color)
+        ),
+        locations = gt::cells_body(
+            columns = maximum,
+            rows = maximum >= 4000
+        )
+    )
+
+}
+
+interview_complete <- function(df) {
+
+    responsibles <- df %>%
+        dplyr::group_by(interview__id, interview__key) %>% # group by interview identifiers
+        dplyr::filter(responsible__role == 1) %>% # interviewer provided answers
+        dplyr::filter(dplyr::row_number() == dplyr::n()) %>% # take last obs in group
+        dplyr::ungroup() %>%
+        dplyr::rename(interviewer = responsible__name) %>%
+        dplyr::select(interview__id, interview__key, interviewer, date)
+
+    return(responsibles)
+
+}
+
+interview_date <- function(df) {
+
+    date_complete <- df %>%
+        dplyr::group_by(interview__id, interview__key) %>% # group by interview identifiers
+        dplyr::filter(responsible__role == 1) %>% # interviewer provided answers
+        dplyr::filter(dplyr::row_number() == dplyr::n()) %>% # take last obs in group
+        dplyr::ungroup() %>%
+        dplyr::select(interview__id, interview__key, date)
+
+    return(date_complete)
+
+}
+
+load_filtered <- function(
+    dir,
+    file,
+    name = gsub(pattern = "\\.dta", replacement = "", x = file),
+    filter_df
+) {
+    df <- haven::read_dta(file = paste0(dir, file))
+    
+    df_filtered <- df %>%
+        dplyr::semi_join(filter_df, by = c("interview__id", "interview__key"))
+    
+    assign(
+        x = name,
+        value = df_filtered,
+        envir = .GlobalEnv
+    )
+    
+}
+
+```
+
+```{r identify_cases}
+
+# question: which statuses should be considered for the report?
+
+cases_to_review <- haven::read_dta(file = paste0(combined_dir, params$main_file_dta)) %>%
+    # selon le statut SuSo
+    dplyr::filter(interview__status %in% statuses_to_reject) %>%
+    # selon les données de l'entretien
+    dplyr::filter(
+        # résultat: achevé
+        (s00q08 %in% c(1, 2))
+        & 
+        # toutes les visites faites
+        (visite1 == 1 & visite2 == 2 & visite3 == 3)
+    ) %>%
+    dplyr::mutate(interview_complete = 1) %>%
+    dplyr::select(interview__id, interview__key, interview_complete, interview__status)
+```
+
+```{r load_data}
+
+fichiers <- c(
+    params$main_file_dta, "membres.dta", "parcelles.dta",
+    "interview__actions.dta", "interview__errors.dta", "interview__diagnostics.dta", "interview__comments.dta"
+)
+fichier_noms <- c(
+    "menages", "membres", "parcelles",
+    "suso_actions", "suso_errors", "suso_diagnostics", "comments"
+)
+
+purrr::walk2(
+    .x = fichiers, 
+    .y = fichier_noms,
+    .f = ~ load_filtered(
+        dir = combined_dir,
+        file = .x,
+        name = .y,
+        filter_df = cases_to_review
+    )
+)
+
+
+purrr::walk(
+    .x = c("calories_totales.dta", "calories_par_item.dta", "consommation_alimentaire_7d.dta"),
+    .f = ~ load_filtered(
+        dir = derived_dir,
+        file = .x,
+        filter_df = cases_to_review
+    )
+)
+```
+
+
+# 1. Progrès
+
+TODO
+
+# 2. Statut par ZD
+
+TODO
+
+```{r get_teams_interviews}
+# obtenir les équipes du serveur: superviseurs et leurs enquêteurs
+equipes <- susoapi::get_interviewers(workspace = params$workspace) %>%
+    dplyr::rename(
+        supervisor = SupervisorName,
+        interviewer = UserName
+    ) %>%
+    dplyr::select(supervisor, interviewer)
+
+# obtenir le vecteur de supeviseurs à exclure
+if (params$sup_exclus == "") {
+    exclus <- ""
+} else {
+    exclus <- unlist(strsplit(
+        x = params$sup_exclus,
+        split = ",[ ]*"
+    ))
+}
+
+# créer la base des équipes à retenir
+enqueteur_par_equipe <- equipes %>%
+    {
+        if (length(exclus) == 0) {
+            . 
+        } else {
+            dplyr::filter(., ! supervisor %in% exclus)
+        }
+    }
+
+# base des entretiens achevés avec la date de d'achèvement
+enqueteur_par_entretien_tous <- interview_complete(df = suso_actions) %>%
+    dplyr::semi_join(cases_to_review, by = c("interview__id", "interview__key"))
+
+# base des entretiens achevés dans la période du rapport
+enqueteur_par_entretien_trie <- enqueteur_par_entretien_tous %>%
+    dplyr::mutate(date = lubridate::as_datetime(date)) %>%
+    dplyr::filter(
+        date %within% 
+        lubridate::interval(
+            start = params$rapport_debut, 
+            end = params$rapport_fin
+        )
+    )
+
+equipe_enqueteur_entretien <- enqueteur_par_equipe %>%
+    dplyr::left_join(enqueteur_par_entretien_trie, by = "interviewer")
+
+menages_ehcvm1 <- dplyr::filter(menages, s00q07d == 1)
+```
+
+# 3. Taux de réponse 
+
+## 3.1. Global
+
+```{r response_overall}
+reponse_globale <- equipe_enqueteur_entretien %>%
+    dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(
+        n_entretiens = !is.na(interview__id),
+        n_rempli = s00q08 %in% c(1, 2),
+        n_non_rempli = s00q08 == 3,
+        nr_abandon = s00q09 == 1,
+        nr_refus = s00q09 == 1,
+        nr_vacant = s00q09 == 1
+    ) %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(
+                n_entretiens, n_rempli, 
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+            ),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+        dplyr::across(
+            .cols = dplyr::starts_with("nr_"),
+            .fns = ~ .x / n_non_rempli
+        ),
+        p_rempli = n_rempli / n_entretiens,
+        p_non_rempli = n_non_rempli / n_entretiens
+    ) %>%
+    replace_nan_inf()
+
+reponse_globale %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(title = "Taux de réponse globale") %>%
+gt::fmt_percent(
+    columns = c(p_rempli, p_non_rempli)
+) %>%
+gt::cols_merge_n_pct(
+    col_n = n_rempli,
+    col_pct = p_rempli
+) %>%
+gt::cols_merge_n_pct(
+    col_n = n_non_rempli,
+    col_pct = p_non_rempli
+) %>%
+gt::cols_label(
+    n_entretiens = gt::html("Entretiens<br>(N)"),
+    n_rempli = gt::html("Rempli<br>(N)"),
+    n_non_rempli = gt::html("Non-rempli<br>(N)"),
+    nr_abandon = "Abandon",
+    nr_refus = "Refus",
+    nr_vacant = "Vacant"
+) %>%
+gt::tab_spanner(
+    label = "Motif de non-réponse (%)",
+    columns = dplyr::starts_with("nr_")
+) %>%
+style_table()
+```
+
+# 3.2 Anciens ménages
+
+```{r response_panel}
+reponse_anciens_menages <- equipe_enqueteur_entretien %>%
+    dplyr::inner_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(
+        n_entretiens = !is.na(interview__id),
+        n_rempli = s00q08 %in% c(1, 2),
+        n_non_rempli = s00q08 == 3,
+        nr_abandon = s00q09 == 1,
+        nr_refus = s00q09 == 1,
+        nr_vacant = s00q09 == 1
+    ) %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(
+                n_entretiens, n_rempli, 
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+            ),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+        dplyr::across(
+            .cols = dplyr::starts_with("nr_"),
+            .fns = ~ .x / n_non_rempli
+        ),
+        p_rempli = n_rempli / n_entretiens,
+        p_non_rempli = n_non_rempli / n_entretiens
+    ) %>%
+    replace_nan_inf()
+
+reponse_anciens_menages %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(title = "Taux de réponse chez les anciens ménages") %>%
+gt::fmt_percent(
+    columns = c(p_rempli, p_non_rempli)
+) %>%
+gt::cols_merge_n_pct(
+    col_n = n_rempli,
+    col_pct = p_rempli
+) %>%
+gt::cols_merge_n_pct(
+    col_n = n_non_rempli,
+    col_pct = p_non_rempli
+) %>%
+gt::cols_label(
+    n_entretiens = gt::html("Entretiens<br>(N)"),
+    n_rempli = gt::html("Rempli<br>(N)"),
+    n_non_rempli = gt::html("Non-rempli<br>(N)"),
+    nr_abandon = "Abandon",
+    nr_refus = "Refus",
+    nr_vacant = "Vacant"
+) %>%
+gt::tab_spanner(
+    label = "Motif de non-réponse (%)",
+    columns = dplyr::starts_with("nr_")
+) %>%
+style_table()
+```
+
+# 4 Taille du ménage
+
+## 4.1 Tous les ménages
+
+```{r hhold_size_all}
+taille_menage_tbl <- equipe_enqueteur_entretien %>%
+    dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
+    dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(
+        n_membres = (
+            # membre
+            (
+            # ... ancien
+            (!is.na(preload_pid) & s01q00a == 1) 
+            |
+            # ... nouveau
+            (is.na(preload_pid))
+            )
+            & 
+            # non-visiteur
+            (s01q12 == 1 | s01q13 == 1)
+        )
+    ) %>%
+    dplyr::group_by(interview__id, interview__key, supervisor) %>%
+    dplyr::summarise(
+        n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        n_membres = sum(n_membres, na.rm = TRUE)
+    ) %>%
+    dplyr::ungroup() %>%
+    # filter out supervisors with no households
+    # TODO: revisit how to do this so that supervisors with no households remain
+    dplyr::filter(n_menages > 0) %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        n_menages = sum(n_menages),
+        minimum = fivenum(n_membres)[1], 
+        lower_hinge = fivenum(n_membres)[2], 
+        median = fivenum(n_membres)[3], 
+        upper_hinge = fivenum(n_membres)[4], 
+        maximum = fivenum(n_membres)[5]
+    ) %>%
+    dplyr::ungroup() %>%
+    replace_nan_inf()
+
+taille_menage_tbl %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(
+    title = "Taille du ménage",
+    subtitle = "Tous les ménages"
+) %>%
+gt::cols_label(
+    n_menages = gt::html("Entretiens<br>(N)"),
+    minimum = "Min",
+    lower_hinge = "Q1",
+    median = "Méd",
+    upper_hinge = "Q3",
+    maximum = "Max"
+) %>%
+style_table()
+
+```
+
+## 4.2 Anciens ménages
+
+```{r hhold_size_panel}
+taille_menage_ancien <- equipe_enqueteur_entretien %>%
+    dplyr::semi_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
+    dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(
+        n_membres_loaded = 1 & !is.na(preload_pid),
+        n_membres = TRUE,
+        n_membres_remain = n_membres_loaded == 1 & s01q00a == 1,
+        n_members_left = n_membres_loaded == 1 & s01q00a == 2,
+        n_membres_new = n_membres == 1 & is.na(preload_pid)
+    ) %>%
+    dplyr::group_by(interview__id, interview__key, supervisor) %>%
+    dplyr::summarise(
+        n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(n_membres, n_membres_new, n_membres_loaded, n_membres_remain, n_members_left),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(n_membres, n_membres_new, n_membres_loaded, n_membres_remain, n_members_left),
+            .fns = ~ mean(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(
+        supervisor,
+        n_menages, n_membres, n_membres_loaded,
+        n_membres_remain, n_members_left, n_membres_new
+    ) %>%
+    replace_nan_inf()
+
+taille_menage_ancien %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(
+    title = "Taille du ménage",
+    subtitle = "Ménages de l'EHCVM"
+) %>%
+gt::cols_label(
+    n_menages = gt::html("Entretiens<br>(N)"),
+    n_membres_loaded    = "EHCVM 1",
+    n_membres           = "EHCVM 2",
+    n_membres_remain    = "Restés",
+    n_members_left      = "Partis",
+    n_membres_new       = "Arrivés"
+) %>%
+gt::tab_spanner(
+    label = gt::html("Membres<br>(N)"),
+    columns = c(n_membres_loaded, n_membres)
+) %>%
+gt::tab_spanner(
+    label = gt::html("Changements<br>(N)"),
+    columns = c(n_membres_new, n_membres_remain, n_members_left)
+) %>%
+gt::fmt_number(columns = everything()) %>%
+style_table()
+```
+
+# 5 Déplacement de l'âge
+
+```{r age_disp}
+age_stats <- equipe_enqueteur_entretien %>%
+    dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
+    dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
+    dplyr::filter((is.na(preload_pid)) | (!is.na(preload_pid) & s01q00a == 1)) %>%
+    dplyr::mutate(
+        age_2 = AgeAnnee == 2,
+        age_3 = AgeAnnee == 3,
+        age_4 = AgeAnnee == 4,
+        age_5 = AgeAnnee == 5,
+        age_6 = AgeAnnee == 6,
+        age_7 = AgeAnnee == 7
+    ) %>%
+    dplyr::group_by(interview__id, interview__key, supervisor) %>%
+    dplyr::summarise(
+        n_members_in_range = AgeAnnee %in% c(2:7), 
+        dplyr::across(
+            .cols = dplyr::starts_with("age_"),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(n_members_in_range, dplyr::starts_with("age_")),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )        
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+        ratio = age_5/age_4,
+        ratio_extended = (age_5 + age_6)/(age_3 + age_4)
+    ) %>%
+    replace_nan_inf()
+
+age_stats %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(title = "Déplacement de l'âge, par équipe") %>%
+gt::cols_label(
+    n_menages = gt::html("Entretiens<br>(N)"),
+    n_members_in_range = gt::html("Membres de 2 à 7<br>(N)"),
+    age_2 = "2",
+    age_3 = "3",
+    age_4 = "4",
+    age_5 = "5",
+    age_6 = "6",
+    age_7 = "7",
+    ratio = gt::html("Ratio d'âge<br>(5/4)"),
+    ratio_extended = gt::html("Ratio élargi<br>(5+6)/(3+4)")
+) %>%
+gt::tab_spanner(
+    label = "Membres d'âge (N)",
+    columns = dplyr::starts_with("age_")
+) %>%
+gt::fmt_number(columns = c(ratio, ratio_extended), decimals = 2) %>%
+gt::tab_style(
+    style = gt::cell_text(
+        color = "red",
+        style = "italic"
+    ),
+    locations = gt::cells_body(
+        columns = c(ratio),
+        rows = ratio < 0.8
+    )
+) %>%
+gt::tab_style(
+    style = gt::cell_text(
+        color = "red",
+        style = "italic"
+    ),
+    locations = gt::cells_body(
+        columns = c(ratio_extended),
+        rows = ratio_extended < 0.8
+    )
+) %>%
+gt::tab_source_note(source_note = "Cible: un ratio d'âge de 0.8 ou plus") %>%
+style_table()
+
+```
+
+# 6. Branche d'activité
+
+TODO
+
+# 7. Nombre de produits alimentaires consommés
+
+```{r num_products}
+n_produits_tbl <- equipe_enqueteur_entretien %>%
+    dplyr::left_join(consommation_alimentaire_7d, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(
+        count_produits = !is.na(interview__id)
+    ) %>%
+    dplyr::group_by(interview__id, interview__key, supervisor) %>%
+    dplyr::summarise(
+        count_produits = sum(count_produits, na.rm = TRUE),
+        n_entretiens = dplyr::n_distinct(interview__id, na.rm = TRUE),
+    ) %>%
+    dplyr::ungroup() %>%
+    # filter out supervisors with no households
+    # TODO: revisit how to do this so that supervisors with no households remain
+    dplyr::filter(n_entretiens > 0) %>%    
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        n_entretiens = sum(n_entretiens, na.rm = TRUE),
+        minimum = fivenum(count_produits)[1], 
+        lower_hinge = fivenum(count_produits)[2], 
+        median = fivenum(count_produits)[3], 
+        upper_hinge = fivenum(count_produits)[4], 
+        maximum = fivenum(count_produits)[5]
+    ) %>%
+    dplyr::ungroup() %>%
+    replace_nan_inf()
+
+n_produits_tbl %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(title = "Nombre de produits consommés") %>%
+gt::cols_label(
+    n_entretiens = gt::html("Entretiens<br>(N)"),
+    minimum = "Min",
+    lower_hinge = "Q1",
+    median = "Méd",
+    upper_hinge = "Q3",
+    maximum = "Max"
+) %>%
+style_table()
+
+```
+
+# 8. Calories 
+
+## 8.1 Totales
+
+```{r calories_total}
+calories_tbl <- equipe_enqueteur_entretien %>%
+    dplyr::left_join(calories_totales, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(n_entretiens = !is.na(interview__id)) %>%
+    # filter out team obs with no interview
+    dplyr::filter(n_entretiens > 0) %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        n_entretiens = sum(n_entretiens, na.rm = TRUE),       
+        dplyr::across(
+            .cols = c(n_consomme, p_calcule),
+            .fns = ~ mean(.x, na.rm = TRUE)
+        ),
+        minimum = fivenum(calories_totales)[1], 
+        lower_hinge = fivenum(calories_totales)[2], 
+        median = fivenum(calories_totales)[3], 
+        upper_hinge = fivenum(calories_totales)[4], 
+        maximum = fivenum(calories_totales)[5]        
+    ) %>%
+    dplyr::ungroup() %>%
+    replace_nan_inf()
+
+calories_tbl %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(title = "Calories totales") %>%
+gt::cols_label(
+    n_entretiens = gt::html("Entretiens<br>(N)"),
+    n_consomme = gt::html("Consommés<br>(N)"),
+    p_calcule = gt::html("Calculés<br>(%)"),
+    minimum = "Min",
+    lower_hinge = "Q1",
+    median = "Méd",
+    upper_hinge = "Q3",
+    maximum = "Max"
+) %>%
+gt::tab_spanner(
+    label = "Produits",
+    columns = c(n_consomme, p_calcule)
+) %>%
+gt::tab_spanner(
+    label = "Distribution de calories",
+    columns = c(minimum, lower_hinge, median, upper_hinge, maximum)
+) %>%
+gt::fmt_percent(columns = p_calcule) %>%
+gt::fmt_number(
+    columns = c(minimum, lower_hinge, median, upper_hinge, maximum),
+    decimals = 2
+) %>%
+flag_calories_low_high() %>%
+style_table()
+
+```
+
+## 8.2 Part des groupes
+
+```{r calories_p_group}
+calories_groupe_tbl <- equipe_enqueteur_entretien %>%
+    dplyr::left_join(calories_par_item, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(
+        groupe = dplyr::case_when(
+            aliment__id %in% c(1:26, 167:169) ~ "p_cereales",
+            aliment__id %in% c(27:39, 170, 171) ~ "p_viandes",
+            aliment__id %in% c(40:51, 172, 173) ~ "p_poissons",
+            aliment__id %in% c(52:60, 174) ~ "p_laitier",
+            aliment__id %in% c(61:70, 175) ~ "p_huiles",
+            aliment__id %in% c(71:87, 176) ~ "p_fruits",
+            aliment__id %in% c(88:108, 177) ~ "p_legumes",
+            aliment__id %in% c(109:133, 178) ~ "p_legtub",
+            aliment__id %in% c(134:138) ~ "p_sucreries",
+            aliment__id %in% c(139:154, 179) ~ "p_epices",
+            aliment__id %in% c(155:165, 180, 181) ~ "p_boissons",
+            TRUE ~ "autre"
+        )
+    ) %>%
+    dplyr::group_by(interview__id, interview__key, supervisor, groupe) %>%
+    dplyr::summarise(calories_par_groupe = sum(calories_par_produit, na.rm = TRUE)) %>%
+    dplyr::ungroup() %>%
+    tidyr::pivot_wider(
+        id_cols = c(interview__id, interview__key, supervisor),
+        names_from = groupe,
+        values_from = calories_par_groupe
+    ) %>%
+    dplyr::select(-autre) %>%
+    dplyr::left_join(calories_totales, by = c("interview__id", "interview__key")) %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(dplyr::starts_with("p_"), calories_totales),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )        
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+        dplyr::across(
+            .cols = dplyr::starts_with("p_"),
+            .fns = ~ .x / calories_totales
+        )
+    ) %>%
+    dplyr::select(
+        supervisor,
+        n_menages,
+        p_cereales, p_viandes, p_poissons, p_laitier, p_huiles, p_fruits, 
+        p_legumes, p_legtub, p_sucreries, p_epices, p_boissons
+    ) %>%
+    replace_nan_inf()
+
+calories_groupe_tbl %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(title = "Part de calories par groupe") %>%
+gt::cols_label(
+    n_menages = gt::html("Ménages<br>(N)"),
+    p_cereales = "Céréales",
+    p_viandes = "Viandes",
+    p_poissons = "Poissons",
+    p_laitier = "Laitier",
+    p_huiles = "Huiles",
+    p_fruits = "Fruits",
+    p_legumes = "Légumes",
+    p_legtub = "Tubercules",
+    p_sucreries = "Sucreries",
+    p_epices = "Épices",
+    p_boissons = "Boissons"
+) %>%
+gt::tab_spanner(
+    label = "Part du groupe (%)",
+    columns = dplyr::starts_with("p_")
+) %>%
+gt::fmt_percent(columns = dplyr::starts_with("p_")) %>%
+style_table()
+
+```
+
+# 9. Mesure de surface par GPS
+
+```{r plot_gps}
+gps_stats <- equipe_enqueteur_entretien %>%
+    dplyr::left_join(parcelles, by = c("interview__id", "interview__key")) %>%
+    dplyr::mutate(
+        n_parcelles = !is.na(parcelles__id),
+        n_non_gps = s16Aq45 == 2,
+        petit = s16Aq48 == 1,
+        panne = s16Aq48 == 2,
+        indisponible = s16Aq48 == 3,
+        loin = s16Aq48 == 4,
+        autre = s16Aq48 == 5
+    ) %>%
+    dplyr::group_by(supervisor) %>%
+    dplyr::summarise(
+        n_entretiens = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(n_parcelles, n_non_gps, petit, panne, indisponible, loin, autre),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+        p_non_gps = n_non_gps / n_parcelles,
+        dplyr::across(
+            .cols = c(petit, panne, indisponible, loin, autre),
+            .fns = ~ .x / n_non_gps
+        )
+    ) %>%
+    replace_nan_inf()
+
+gps_stats %>%
+gt::gt(rowname_col = "supervisor") %>%
+gt::tab_header(
+    title = "Mesure de superficie par GPS",
+    subtitle = "Taux l'absence de mesure et motifs"
+) %>%
+gt::fmt_percent(columns = p_non_gps) %>%
+gt::cols_merge_n_pct(
+    col_n = n_non_gps,
+    col_pct = p_non_gps
+) %>%
+gt::cols_label(
+    n_entretiens = gt::html("Entretiens<br>(N)"),
+    n_parcelles = gt::html("Parcelles<br>(N)"),
+    n_non_gps = gt::html("Sans mesure<br>(N)"),
+    petit = "Trop petite",
+    panne = "GPS en panne",
+    indisponible = "Ménage indisponible",
+    loin = "Trop éloignée",
+    autre = "Autre"
+) %>%
+gt::tab_spanner(
+    columns = c(petit, panne, indisponible, loin, autre),
+    label = "Motif de non-mesure (%)"
+) %>%
+gt::fmt_number(
+    columns = c(petit, panne, indisponible, loin, autre),
+    decimals = 2,
+    scale_by = 100
+) %>%
+style_table()
+
+```
+
+# 10. Erreurs de rejet
+
+## 10.1 Les plus fréquentes
+
+```{r errors_freq}
+erreurs_avant <- comments %>%
+    dplyr::filter(stringr::str_starts(variable, "@@Rejected")) %>%
+    tidyr::separate_rows(sep = "\n") %>%
+    dplyr::select(interview__id, interview__key, comment) %>%
+    dplyr::rename(erreur = comment)
+
+erreurs_maintenant <- haven::read_dta(file = paste0(output_dir, "to_reject_issues.dta")) %>%
+    dplyr::filter(issue_type == 1) %>%
+    dplyr::select(interview__id, interview__key, issue_comment) %>%
+    dplyr::rename(erreur = issue_comment)
+
+erreurs <- dplyr::bind_rows(erreurs_avant, erreurs_maintenant) %>%
+    dplyr::distinct(interview__id, interview__key, erreur) %>%
+    dplyr::count(erreur) %>%
+    dplyr::arrange(dplyr::desc(n))
+
+reactable::reactable(
+    data = erreurs,
+    striped = TRUE,
+    sortable = TRUE, 
+    searchable = TRUE,
+    compact = TRUE,
+    theme = reactableTheme(
+        headerStyle = list(color = "#ffffff", background = "#0F2B1D"),
+        stripedColor = "#edfaea",
+        searchInputStyle = list(
+            backgroundColor = "#edfaea",
+            borderColor = "#8cc0a5",
+            borderWidth = "medium",
+            "&:focus" = list(backgroundColor = "#edfaea", borderWidth = "thick", borderColor = "#0F2B1D"),
+            "&:hover, &:focus" = list(borderWidth = "thick", borderColor = "#8cc0a5"),
+            "&:hover::placeholder, &:focus::placeholder" = list(color = "#8cc0a5")            
+        )
+    ),
+    columns = list(
+        erreur = reactable::colDef(name = "Erreur"),
+        n = reactable::colDef(name = "Fréquence")
+    )    
+)
+```
+
+## 10.2 Tendances
+
+TODO
