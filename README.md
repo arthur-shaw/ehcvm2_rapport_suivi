@@ -147,3 +147,11 @@ Ceci fournira au rapport les données les plus récentes.
 Avant de créer le rapport, modifier les dates du début et de fin de la
 période du rapport. Ces informations servent à trier les informations du
 rapport et ainsi n’inclure que des informations de la période indiquée.
+
+### Lancer le programme
+
+Pour ce faire:
+
+-   Ouvrir le fichier `ehcvm2_rapport_suivi.Rproj`
+-   Ouvrir le fichier `creer_rapport_suivi.R`
+-   Lancer le programme en cliquant sur le bouton `Source`
