@@ -2,27 +2,27 @@
 # Fournir les paramètres du projet
 # =============================================================================
 
-rapport_dir <- "C:/Users/wb393438/UEMOA/ehcvm2_rapport_suivi/"
+rapport_dir <- ""
 
 rapport_params <- list(
     # PÉRIODE DU RAPPORT: DÉBUT ET FIN
     # pour les dates,  mettre dans le format ISO 8601: AAAA-MM-JJ
     # par exemple, "2021-11-25" pour le 25 novembre, 2021
-    rapport_debut   = "2021-11-08",
-    rapport_fin     = "2021-11-22",
+    rapport_debut   = "",
+    rapport_fin     = "",
     # RÉPERTOIRE DU PROGRAMME DE REJET
     # le rapport puise les données du programme de rejet
-    rejet_proj_dir  = "C:/Users/wb393438/UEMOA/ehcvm2_rejet/",
+    rejet_proj_dir  = "",
     # NOM DU FICHIER PRINCIPAL
     # normalement, ça doit être "menage.dta", comme la valeur de défaut ici-bas
     # tâcher d'inclure l'exentension  .dta.
-    main_file_dta   = "EHCVM2_MENAGE_VAGUE1_BFA.dta",
+    main_file_dta   = "menage.dta",
     workspace       = "primary",
     # CHEFS D'ÉQUIPE À EXCLURE DU RAPPORT
     # parfois, il existe des chefs fictifs ou des rélicats de la formation
     # si tel et le cas, fournir une liste délimitée par virgule des noms (e.g., "Chef1, Chef2")
     # si tel n'est pas le cas, laisser la valeur de défaut ici-bas: ""
-    sup_exclus      = "CongoMichel, G1Cyrus, Gcyrus, IlboudoBassirou, IlboudoRegis, KambireSansan, KoctyAbdoulaye, Kouraogo, OuattaraKarim, OuattaraMatene, Sanibouor, Souleymane, Sourwema, TestSupervisor, TraoreLozanga, Wendemanegde, YaogoSylvain, ZabreSakana, ZalleDjiblirou, ZoundiJerome"
+    sup_exclus      = ""
 )
 
 # =============================================================================
