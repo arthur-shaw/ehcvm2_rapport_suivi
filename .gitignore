@@ -6,3 +6,7 @@
 
 # ne pas traquer les rapports
 *.html
+
+# ne pas traquer le contenu de certains répertoires
+# esquisse de développement
+scratch/
