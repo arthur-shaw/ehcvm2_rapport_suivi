@@ -77,6 +77,17 @@ rapport_params <- list(
     # si tel et le cas, fournir une liste délimitée par virgule des noms (e.g., "Chef1, Chef2")
     # si tel n'est pas le cas, laisser la valeur de défaut ici-bas: ""
     sup_exclus      = ""
+
+)
+
+# =============================================================================
+# Enregistrer la clé d'accès au serveur
+# =============================================================================
+
+susoapi::set_credentials(
+    server = rapport_params$serveur,
+    user = rapport_params$utilisateur_api,
+    password = rapport_params$passe_api
 )
 
 # =============================================================================
