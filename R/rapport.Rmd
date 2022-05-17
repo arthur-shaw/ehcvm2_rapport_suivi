@@ -515,7 +515,267 @@ echarts4r::e_arrange(guage_n_menages, gauge_n_dr, rows = 1, cols = 2)
 
 # 2. Statut par ZD
 
-TODO
+```{r status_by_ea}
+
+interviews_last_synced <- interview_sync_dates |>
+    dplyr::mutate(
+        date_component = stringr::str_sub(updateDateUtc, start = 1L, end = 10L),
+        suso_update_date = lubridate::ymd(date_component)
+    ) |>
+    dplyr::select(
+        interview__id = id, interview__key = key,
+        suso_update_date, 
+        interviewer = responsibleName, 
+        supervisor = supervisorName
+    )
+
+interviews_last_completed <- interview_complete(df = suso_actions)
+
+interviews_dates <- cases_to_review |>
+    dplyr::select(interview__id, interview__key) |>
+    dplyr::left_join(interviews_last_synced, by = c("interview__id", "interview__key")) |>
+    dplyr::left_join(interviews_last_completed, by = c("interview__id", "interview__key"))
+
+hhold_metadata <- menages |>
+    dplyr::select(
+        interview__id, interview__key,
+        grappe,
+        dplyr::matches("s00q0[1-7]$"),
+        s00q08
+    ) |>
+    dplyr::left_join(interviews_last_synced, by = c("interview__id", "interview__key")) |>
+    dplyr::select(-c(interview__id, interview__key))
+
+hhold_stats <- hhold_metadata |>
+    dplyr::mutate(
+        dplyr::across(
+            .cols = c(s00q01, s00q02, s00q03, s00q04, s00q06),
+            .fns = ~ haven::as_factor(.x),
+            .names = "fct_{.col}"
+        ),
+        ea = glue::glue("Région: {fct_s00q01}, Département: {fct_s00q02}, Commune: {fct_s00q03}, Milieu: {fct_s00q04}, ZD: {fct_s00q06}"),
+        n_hholds_filled = s00q08 %in% c(1, 2)
+    ) |>
+    dplyr::group_by(ea, grappe, supervisor) |>
+    dplyr::summarise(
+        hhold_update_date = max(suso_update_date, na.rm = TRUE),
+        n_hholds_received = dplyr::n(),
+        n_hholds_filled = sum(n_hholds_filled, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(s00q01, s00q02, s00q03, s00q04, s00q06),
+            .fns = ~ dplyr::first(.x)
+        )
+    ) |>
+    dplyr::ungroup()
+
+community_metadata <- community |>
+    # keep SuSo and geo IDs
+    dplyr::select(
+        interview__id, interview__key,
+        !!rlang::data_sym(params$grappe_var),
+        !!rlang::data_sym(params$region_var), 
+        !!rlang::data_sym(params$departement_var), 
+        !!rlang::data_sym(params$commune_var), 
+        !!rlang::data_sym(params$milieu_var), 
+        !!rlang::data_sym(params$dr_var)  
+    ) |>
+    # assign geo IDs to standard geo ID names
+    dplyr::mutate(
+        grappe = !!rlang::data_sym(params$grappe_var),
+        s00q01 = !!rlang::data_sym(params$region_var), 
+        s00q02 = !!rlang::data_sym(params$departement_var), 
+        s00q03 = !!rlang::data_sym(params$commune_var), 
+        s00q04 = !!rlang::data_sym(params$milieu_var), 
+        s00q06 = !!rlang::data_sym(params$dr_var)              
+    ) |>
+    # create an EA name from community components
+    dplyr::mutate(
+        dplyr::across(
+            .cols = c(s00q01, s00q02, s00q03, s00q04, s00q06),
+            .fns = ~ haven::as_factor(.x),
+            .names = "fct_{.col}"
+        ),
+        ea_comm = glue::glue("Région: {fct_s00q01}, Département: {fct_s00q02}, Commune: {fct_s00q03}, Milieu: {fct_s00q04}, ZD: {fct_s00q06}")
+    ) |>
+    dplyr::left_join(interviews_last_synced, by = c("interview__id", "interview__key")) |>
+    dplyr::select(-c(interview__id, interview__key))
+
+community_stats <- community_metadata |>
+    dplyr::group_by(grappe, s00q01, s00q02, s00q03, s00q04, s00q06) |>
+    dplyr::summarise(
+        comm_update_date = max(suso_update_date, na.rm = TRUE),
+        n_comm_received = dplyr::n(),
+        ea_comm = dplyr::first(ea_comm)
+    ) |>
+    dplyr::ungroup()
+
+ea_stats <- dplyr::full_join(
+        hhold_stats, community_stats, 
+        by = "grappe"
+    ) |>
+    dplyr::mutate(
+        ea = dplyr::if_else(
+            condition = is.na(ea), 
+            true = ea_comm,
+            false = ea
+        ),
+        n_comm_received = dplyr::if_else(
+            condition = is.na(n_comm_received),
+            true = 0L,
+            false = n_comm_received
+        ),
+        hh_complete = dplyr::case_when(
+            # case 1: exhausted all households (i.e., sampled + replacement)
+            n_hholds_received == params$n_menages_dr + params$n_menages_remplacement ~ TRUE,
+            # case 2: received as many completed interviews as households sampled per EA
+            n_hholds_filled == params$n_menages_dr ~ TRUE,
+            TRUE ~ FALSE
+        ),
+        comm_complete = dplyr::if_else(
+            condition = n_comm_received %in% c(1, 2),
+            true = TRUE,
+            false = FALSE,
+            missing = FALSE
+        ),       
+        ea_status = dplyr::case_when(
+            # case 1: more household or community questionnaires received than expected
+            (n_hholds_filled > params$n_menages_dr + params$n_menages_remplacement) | (n_comm_received > 2) ~ "Erreur",
+            # case 2: all expected hhold and community received
+            hh_complete == TRUE & comm_complete == TRUE ~ "Achevé",
+            # case 3: hhold and/or community quetionnaires
+            dplyr::if_any(
+                .cols = c(hh_complete, comm_complete),
+                .fns = ~ .x %in% c(FALSE, NA)
+            ) ~ "En cours",
+        ) 
+    ) |>
+    dplyr::select(
+        ea,
+        grappe, 
+        ea_status,
+        supervisor,
+        hhold_update_date, hh_complete, n_hholds_received, n_hholds_filled,
+        comm_update_date, comm_complete, n_comm_received
+    )
+
+reactable::reactable(
+    data = ea_stats,
+    defaultColDef = reactable::colDef(
+        minWidth = 100,
+        maxWidth = 100,
+        align = "center",
+        na = "-"
+    ),
+    columns = list(
+        ea = reactable::colDef(
+            name = "DR",
+            minWidth = 300,
+            maxWidth = 700,
+            align = "left"
+        ),
+        grappe = reactable::colDef(
+            name = "Grappe"
+        ),
+        ea_status = reactable::colDef(
+            name = "Statut",
+            cell = function(value) {
+                if (value == "Achevé") {
+                    color <- "background: #99e388; color: #2e7c1d;"
+                } else if (value == "En cours") {
+                    color <- "background: #fdd6ce; color: #aa2308;"
+                } else if (value == "Erreur") {
+                    color <- "background: #E2BF1C; color: #F0590A"
+                }
+                htmltools::div(
+                    style = paste(
+                        "display: inline-block; padding: 2px 12px; border-radius: 15px; font-weight: 600; font-size: 12px;",
+                        color    
+                    ),
+                    value
+                )
+            }
+        ),
+        supervisor = reactable::colDef(
+            name = "Équipe",
+            width = 150
+        ),
+        hhold_update_date = reactable::colDef(
+            name = "Dernière sync"            
+        ),
+        hh_complete = reactable::colDef(
+            name = "Achevé",
+            minWidth = 75,
+            maxWidth = 75,
+            cell = function(value) {
+                if (value == TRUE) {
+                    status <- fontawesome::fa_i(name = "check", style = "color: #2e7c1d;")
+                } else if (value == FALSE) {
+                    status <- fontawesome::fa_i(name = "times", style = "color: #aa2308;")
+                }
+                status
+            }
+        ),
+        n_hholds_received = reactable::colDef(
+            name = "Reçu", 
+            width = 75
+        ),
+        n_hholds_filled = reactable::colDef(
+            name = "Rempli",
+            width = 75
+        ),        
+        comm_update_date = reactable::colDef(
+            name = "Dernière sync"
+        ),
+        comm_complete = reactable::colDef(
+            name = "Achevé",
+            minWidth = 75,
+            maxWidth = 75,
+            cell = function(value) {
+                if (value == TRUE) {
+                    status <- fontawesome::fa_i(name = "check", style = "color: #2e7c1d;")
+                } else if (value == FALSE) {
+                    status <- fontawesome::fa_i(name = "times", style = "color: #aa2308;")
+                }
+                status
+            }
+        ),
+        n_comm_received = reactable::colDef(
+            name = "Reçu"
+        )
+    ),
+    columnGroups = list(
+        reactable::colGroup(
+            name = "Ménage",
+            columns = c("hhold_update_date", "hh_complete", "n_hholds_received", "n_hholds_filled")
+        ),
+        reactable::colGroup(
+            name = "Communauté",
+            columns = c("comm_update_date", "comm_complete", "n_comm_received")
+        )
+    ),
+    filterable = TRUE,
+    striped = TRUE,
+    searchable = TRUE,
+    compact = TRUE,
+    fullWidth = FALSE,
+    theme = reactable::reactableTheme(
+        headerStyle = list(color = "#ffffff", background = "#0F2B1D"),
+        groupHeaderStyle = list(color = "#ffffff", background = "#0F2B1D"),
+        stripedColor = "#edfaea",
+        searchInputStyle = list(
+            backgroundColor = "#edfaea",
+            borderColor = "#8cc0a5",
+            borderWidth = "medium",
+            "&:focus" = list(backgroundColor = "#edfaea", borderWidth = "thick", borderColor = "#0F2B1D"),
+            "&:hover, &:focus" = list(borderWidth = "thick", borderColor = "#8cc0a5"),
+            "&:hover::placeholder, &:focus::placeholder" = list(color = "#8cc0a5")            
+        )
+    ),
+    language = reactable_fr 
+    
+)
+
+```
 
 ```{r get_teams_interviews}
 # obtenir les équipes du serveur: superviseurs et leurs enquêteurs
