@@ -1034,7 +1034,8 @@ style_table()
 ## 4.1 Tous les ménages
 
 ```{r hhold_size_all}
-taille_menage_tbl <- equipe_enqueteur_entretien %>%
+# indicators by interview
+taille_menage_by_interview <- equipe_enqueteur_entretien %>%
     dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
@@ -1052,26 +1053,46 @@ taille_menage_tbl <- equipe_enqueteur_entretien %>%
             (s01q12 == 1 | s01q13 == 1)
         )
     ) %>%
+    # household-level counts
     dplyr::group_by(interview__id, interview__key, supervisor) %>%
     dplyr::summarise(
         n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
-        n_membres = sum(n_membres, na.rm = TRUE)
+        n_membres = sum(n_membres, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(report_period, week),
+            .fns = ~ dplyr::first(.x)
+        )
     ) %>%
-    dplyr::ungroup() %>%
-    # filter out supervisors with no households
-    # TODO: revisit how to do this so that supervisors with no households remain
-    dplyr::filter(n_menages > 0) %>%
+    dplyr::ungroup() 
+
+# report week stats
+taille_menage_by_group <- taille_menage_by_interview %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
-        n_menages = sum(n_menages),
-        minimum = fivenum(n_membres)[1], 
-        lower_hinge = fivenum(n_membres)[2], 
-        median = fivenum(n_membres)[3], 
-        upper_hinge = fivenum(n_membres)[4], 
-        maximum = fivenum(n_membres)[5]
+        n_menages = sum(n_menages, na.rm = TRUE),
+        minimum = fivenum(n_membres, na.rm = TRUE)[1], 
+        lower_hinge = fivenum(n_membres, na.rm = TRUE)[2], 
+        median = fivenum(n_membres, na.rm = TRUE)[3], 
+        upper_hinge = fivenum(n_membres, na.rm = TRUE)[4], 
+        maximum = fivenum(n_membres, na.rm = TRUE)[5]
     ) %>%
     dplyr::ungroup() %>%
     replace_nan_inf()
+    
+taille_menage_overall <- taille_menage_by_interview %>%
+    dplyr::filter(report_period == TRUE) %>%
+    dplyr::summarise(
+        n_menages = sum(n_menages, na.rm = TRUE),
+        minimum = fivenum(n_membres, na.rm = TRUE)[1], 
+        lower_hinge = fivenum(n_membres, na.rm = TRUE)[2], 
+        median = fivenum(n_membres, na.rm = TRUE)[3], 
+        upper_hinge = fivenum(n_membres, na.rm = TRUE)[4], 
+        maximum = fivenum(n_membres, na.rm = TRUE)[5]
+    ) %>%
+    replace_nan_inf() %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::relocate(supervisor)
 
 taille_menage_tbl %>%
 gt::gt(rowname_col = "supervisor") %>%
