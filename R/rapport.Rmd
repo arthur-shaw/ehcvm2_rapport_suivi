@@ -841,7 +841,8 @@ menages_ehcvm1 <- dplyr::filter(menages, s00q07d == 1)
 ## 3.1. Global
 
 ```{r response_overall}
-reponse_globale <- equipe_enqueteur_entretien %>%
+reponse_globale_counts <- equipe_enqueteur_entretien %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
@@ -861,7 +862,10 @@ reponse_globale <- equipe_enqueteur_entretien %>%
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
-    dplyr::ungroup() %>%
+    dplyr::ungroup() 
+    
+reponse_globale_by_group <- reponse_globale_counts %>%
+    # compute stats
     dplyr::mutate(
         dplyr::across(
             .cols = dplyr::starts_with("nr_"),
@@ -871,6 +875,34 @@ reponse_globale <- equipe_enqueteur_entretien %>%
         p_non_rempli = n_non_rempli / n_entretiens
     ) %>%
     replace_nan_inf()
+
+reponse_globale_overall <- reponse_globale_counts %>%
+    # overall counts
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(
+                n_entretiens, n_rempli, 
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+            ),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    # compute stats
+    dplyr::mutate(
+        dplyr::across(
+            .cols = dplyr::starts_with("nr_"),
+            .fns = ~ .x / n_non_rempli
+        ),
+        p_rempli = n_rempli / n_entretiens,
+        p_non_rempli = n_non_rempli / n_entretiens
+    ) %>%
+    replace_nan_inf() %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::relocate(supervisor)
+
+reponse_globale <- dplyr::bind_rows(
+    reponse_globale_overall, reponse_globale_by_group
+)
 
 reponse_globale %>%
 gt::gt(rowname_col = "supervisor") %>%
