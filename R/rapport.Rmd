@@ -936,7 +936,8 @@ style_table()
 # 3.2 Anciens ménages
 
 ```{r response_panel}
-reponse_anciens_menages <- equipe_enqueteur_entretien %>%
+reponse_anciens_menages_counts <- equipe_enqueteur_entretien %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::inner_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
@@ -956,7 +957,10 @@ reponse_anciens_menages <- equipe_enqueteur_entretien %>%
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
-    dplyr::ungroup() %>%
+    dplyr::ungroup()
+
+reponse_anciens_menages_by_group <- reponse_anciens_menages_counts %>%
+    # compute stats
     dplyr::mutate(
         dplyr::across(
             .cols = dplyr::starts_with("nr_"),
@@ -966,6 +970,35 @@ reponse_anciens_menages <- equipe_enqueteur_entretien %>%
         p_non_rempli = n_non_rempli / n_entretiens
     ) %>%
     replace_nan_inf()
+
+reponse_anciens_menages_overall <- reponse_anciens_menages_counts %>%
+    # overall counts
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(
+                n_entretiens, n_rempli, 
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+            ),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    # compute stats
+    dplyr::mutate(
+        dplyr::across(
+            .cols = dplyr::starts_with("nr_"),
+            .fns = ~ .x / n_non_rempli
+        ),
+        p_rempli = n_rempli / n_entretiens,
+        p_non_rempli = n_non_rempli / n_entretiens
+    ) %>%
+    replace_nan_inf() %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::relocate(supervisor)
+
+# combine group and overall stats
+reponse_anciens_menages <- dplyr::bind_rows(
+    reponse_anciens_menages_overall, reponse_anciens_menages_by_group
+)
 
 reponse_anciens_menages %>%
 gt::gt(rowname_col = "supervisor") %>%
