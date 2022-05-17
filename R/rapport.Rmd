@@ -52,17 +52,22 @@ knitr::opts_chunk$set(
 ```
 
 ```{r set_folders}
+# scripts
+script_dir <- paste0(params$proj_dir, "R/")
 # data
-data_dir <- paste0(params$rejet_proj_dir, "data/") # /data/
-resource_dir <- paste0(data_dir, "00_resource/")  # /00_resource/
-download_dir <- paste0(data_dir, "01_downloaded/")  # /01_downloaded/
-combined_dir <- paste0(data_dir, "02_combined/")  # /02_combined/
-derived_dir <- paste0(data_dir, "03_derived/")   # /03_derived/
+data_dir <- paste0(params$proj_dir, "data/") # /data/
+hhold_dir <- paste0(data_dir, "hhold/")
+comm_dir <- paste0(data_dir, "community/")
+sync_dir <- paste0(data_dir, "sync/")
+# household
+hh_resource_dir <- paste0(hhold_dir, "00_resource/")  # /00_resource/
+hh_download_dir <- paste0(hhold_dir, "01_downloaded/")  # /01_downloaded/
+hh_combined_dir <- paste0(hhold_dir, "02_combined/")  # /02_combined/
+hh_derived_dir <- paste0(hhold_dir, "03_derived/")   # /03_derived/
+# community
+comm_download_dir <- paste0(comm_dir, "01_downloaded/")  # /01_downloaded/
+comm_combined_dir <- paste0(comm_dir, "02_combined/")  # /02_combined/
 
-# outputs
-output_dir <- paste0(params$rejet_proj_dir, "output/")    # /output/
-
-statuses_to_reject <- c(100, 120)
 ```
 
 ```{r load_libraries}
