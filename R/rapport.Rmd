@@ -1115,7 +1115,8 @@ style_table()
 ## 4.2 Anciens ménages
 
 ```{r hhold_size_panel}
-taille_menage_ancien <- equipe_enqueteur_entretien %>%
+taille_menage_ancien_counts <- equipe_enqueteur_entretien %>%  
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::semi_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
@@ -1149,6 +1150,26 @@ taille_menage_ancien <- equipe_enqueteur_entretien %>%
         n_membres_remain, n_members_left, n_membres_new
     ) %>%
     replace_nan_inf()
+
+taille_menage_ancien_overall <- taille_menage_ancien_counts %>%
+    dplyr::summarise(
+        n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(n_membres, n_membres_new, n_membres_loaded, n_membres_remain, n_members_left),
+            .fns = ~ mean(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::select(
+        supervisor,
+        n_menages, n_membres, n_membres_loaded,
+        n_membres_remain, n_members_left, n_membres_new
+    ) %>%
+    replace_nan_inf()
+
+taille_menage_ancien <- dplyr::bind_rows(
+    taille_menage_ancien_overall, taille_menage_ancien_by_group
+)
 
 taille_menage_ancien %>%
 gt::gt(rowname_col = "supervisor") %>%
@@ -1199,7 +1220,9 @@ age_stats <- equipe_enqueteur_entretien %>%
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
-    dplyr::ungroup() %>%
+    dplyr::ungroup()
+
+taille_menage_ancien_by_group <- taille_menage_ancien_counts %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
