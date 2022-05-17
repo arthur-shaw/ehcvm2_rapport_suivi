@@ -384,17 +384,41 @@ purrr::walk2(
 community <- haven::read_dta(file = paste0(comm_combined_dir, params$comm_fichier))
 
 interview_sync_dates <- readxl::read_excel(paste0(sync_dir, "interview_sync_dates.xlsx"))
+```
+
+```{r create_derived_data, results='hide'}
+# combine food data
+source(paste0(script_dir, "combine_food.R"))
+
+# compute calories
+# create objects expected by program
+resource_dir    <- hh_resource_dir
+derived_dir     <- params$hh_derived_dir
+nom_fichier_calories <- params$nom_fichier_calories
+nom_fichier_facteurs <- params$nom_fichier_facteurs
+facteurs_niv    <- params$facteurs_niv
+facteurs_prod_id <- params$facteurs_prod_id
+facteurs_region <- params$facteurs_region
+facteurs_milieu <- params$facteurs_milieu
+facteurs_unite  <- params$facteurs_unite
+facteurs_taille <- params$facteurs_taille
+facteurs_poids  <- params$facteurs_poids
+# run script
+source(paste0(script_dir, "calculate_calories.R"))
+```
+
+```{r load_derived_data}
 
 purrr::walk(
-    .x = c("calories_totales.dta", "calories_par_item.dta", "consommation_alimentaire_7d.dta"),
+    .x = c("consommation_alimentaire_7d.dta", "calories_totales.dta", "calories_par_item.dta"),
     .f = ~ load_filtered(
-        dir = derived_dir,
+        dir = hh_derived_dir,
         file = .x,
         filter_df = cases_to_review
     )
 )
-```
 
+```
 
 # 1. Progrès
 
