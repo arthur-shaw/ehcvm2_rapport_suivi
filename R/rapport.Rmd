@@ -359,10 +359,10 @@ cases_to_review <- haven::read_dta(file = paste0(hh_combined_dir, params$menage_
     dplyr::select(interview__id, interview__key, interview_complete, interview__status)
 ```
 
-```{r load_data}
+```{r load_raw_data}
 
 fichiers <- c(
-    params$main_file_dta, "membres.dta", "parcelles.dta",
+    params$menage_fichier, "membres.dta", "parcelles.dta",
     "interview__actions.dta", "interview__errors.dta", "interview__diagnostics.dta", "interview__comments.dta"
 )
 fichier_noms <- c(
@@ -374,7 +374,7 @@ purrr::walk2(
     .x = fichiers, 
     .y = fichier_noms,
     .f = ~ load_filtered(
-        dir = combined_dir,
+        dir = hh_combined_dir,
         file = .x,
         name = .y,
         filter_df = cases_to_review
