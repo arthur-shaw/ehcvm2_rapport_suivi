@@ -422,7 +422,96 @@ purrr::walk(
 
 # 1. Progrès
 
-TODO
+```{r progress_gauges, out.width='100%'}
+menages_attendus <- params$n_dr * params$n_menages_dr
+menages_acheves <- nrow(menages)
+
+guage_n_menages <- echarts4r::e_charts() |>
+    echarts4r::e_gauge(
+        value = round(100 * (menages_acheves / menages_attendus), digits = 1),
+        name = glue::glue("{menages_acheves} / {menages_attendus}"),
+        title = list(
+            offsetCenter = list(0, '100%')
+        ),        
+        pointer = list(
+            itemStyle = list(
+                color = "#0F2B1D"
+            )
+        ),
+        progress = list(
+            show = TRUE,
+            itemStyle = list(
+                color = "#264535"
+            )
+        ),
+        splitLine = list(
+            lineStyle = list(
+                color = "#516A5D"
+            )
+        ),
+        detail = list(
+            formatter = "{value}%",
+            color = "#264535",
+            fontSize = 25,
+            offsetCenter = list(0, '75%')
+        ),
+        radius = '40%'
+    ) |>
+    echarts4r::e_title(
+        text = "Ménages",
+        left = "center",
+        textStyle = list(
+            fontSize = 40,
+            color = "#0F2B1D"
+        )
+    )
+
+dr_attendus <- params$n_dr
+dr_acheves <- dplyr::distinct(community, !!rlang::data_sym(params$grappe_var))
+
+gauge_n_dr <- echarts4r::e_charts() |>
+    echarts4r::e_gauge(
+        value = round(100 * (dr_acheves / dr_attendus), digits = 2),
+        name = glue::glue("{dr_acheves} / {dr_attendus}"),
+        title = list(
+            offsetCenter = list(0, '100%')
+        ),        
+        pointer = list(
+            itemStyle = list(
+                color = "#0F2B1D"
+            )
+        ),
+        progress = list(
+            show = TRUE,
+            itemStyle = list(
+                color = "#264535"
+            )
+        ),
+        splitLine = list(
+            lineStyle = list(
+                color = "#516A5D"
+            )
+        ),
+        detail = list(
+            formatter = "{value}%",
+            color = "#264535",
+            fontSize = 25,
+            offsetCenter = list(0, '75%')
+        ),
+        radius = '40%'
+    ) |>
+    echarts4r::e_title(
+        text = "DRs",
+        left = "center",
+        textStyle = list(
+            fontSize = 40,
+            color = "#0F2B1D"
+        )
+    )
+
+echarts4r::e_arrange(guage_n_menages, gauge_n_dr, rows = 1, cols = 2)
+
+```
 
 # 2. Statut par ZD
 
