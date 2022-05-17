@@ -219,6 +219,67 @@ writexl::write_xlsx(
     path = paste0(sync_dir, "interview_sync_dates.xlsx")
 )
 
+# =============================================================================
+# Vérifier les bases et leur contenu
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Ménage
+# -----------------------------------------------------------------------------
+
+# base existe
+chemin_menage <- paste0(hh_combined_dir, rapport_params$menage_fichier)
+if (!file.exists(chemin_menage)) {
+    stop(paste0(
+        "Le fichier du paramètre `menage_fichier` n'existe pas dans le répertoire `hh_combined_dir`. ",
+        "Veuillez corriger le paramètre."
+    ))
+}
+
+# base contient les colonnes d'identification DR
+hhold <- haven::read_dta(chemin_menage)
+
+if (!"grappe" %in% names(hhold)) {
+    stop("La colonne `grappe` n'existe pas dans la base désigné dans le paramètre `menage_fichier`")
+}
+
+# -----------------------------------------------------------------------------
+# Communautaire
+# -----------------------------------------------------------------------------
+
+# base existe
+chemin_comm <- paste0(comm_combined_dir, rapport_params$comm_fichier)
+if (!file.exists(chemin_comm)) {
+    stop(paste0(
+        "Le fichier du paramètre `comm_fichier` n'existe pas dans le répertoire `comm_combined_dir`. ",
+        "Veuillez corriger le paramètre."
+    ))
+}
+
+# base contient les colonnes d'identification DR
+community <- haven::read_dta(chemin_comm)
+
+# check that columns in community data
+geo_id_vars <- c(
+    rapport_params$grapp_var,
+    rapport_params$region_var, 
+    rapport_params$departement_var, 
+    rapport_params$commune_var, 
+    rapport_params$milieu_var, 
+    rapport_params$dr_var
+)
+
+columns_not_community <- !geo_id_vars %in% names(community)
+
+if (any(columns_not_community == TRUE)) {
+    missing_cols <- geo_id_vars[columns_not_community]
+    stop(paste0(
+        glue::glue("Les colonnes suivantes n'existent pas dans la base communautaire {params$comm_fichier}: "), 
+        glue::glue_collapse(missing_cols, sep = ", "), ". ",
+        "Veuillez spécifier les noms de colonne dans le fichier `creer_rapport_suivi.R` ",
+        "chez les paramètres `region_var`, `departement_var`, `commune_var`, `milieu_var`, `dr_var`"
+    ))
+}
 
 # =============================================================================
 # Créer le rapport avec les paramètres indiqués ci-haut
