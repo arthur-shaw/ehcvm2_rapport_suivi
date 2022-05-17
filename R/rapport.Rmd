@@ -318,9 +318,9 @@ load_filtered <- function(
 
 # question: which statuses should be considered for the report?
 
-cases_to_review <- haven::read_dta(file = paste0(combined_dir, params$main_file_dta)) %>%
+cases_to_review <- haven::read_dta(file = paste0(hh_combined_dir, params$menage_fichier)) %>%
     # selon le statut SuSo
-    dplyr::filter(interview__status %in% statuses_to_reject) %>%
+    dplyr::filter(interview__status %in% params$statuses_to_review) %>%
     # selon les données de l'entretien
     dplyr::filter(
         # résultat: achevé
