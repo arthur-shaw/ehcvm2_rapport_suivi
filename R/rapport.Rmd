@@ -807,22 +807,31 @@ enqueteur_par_equipe <- equipes %>%
     }
 
 # base des entretiens achevés avec la date de d'achèvement
-enqueteur_par_entretien_tous <- interview_complete(df = suso_actions) %>%
-    dplyr::semi_join(cases_to_review, by = c("interview__id", "interview__key"))
-
-# base des entretiens achevés dans la période du rapport
-enqueteur_par_entretien_trie <- enqueteur_par_entretien_tous %>%
-    dplyr::mutate(date = lubridate::as_datetime(date)) %>%
-    dplyr::filter(
-        date %within% 
-        lubridate::interval(
-            start = params$rapport_debut, 
-            end = params$rapport_fin
-        )
+enqueteur_par_entretien <- interview_complete(df = suso_actions) %>%
+    dplyr::semi_join(cases_to_review, by = c("interview__id", "interview__key")) |>
+    dplyr::rename_with(
+        .cols = dplyr::matches("_last_complete"),
+        .fn = ~ stringr::str_replace(.x, pattern = "_last_complete", replacement = "")
+    ) |>
+    dplyr::mutate(
+        # date d'achèvement
+        date = lubridate::as_datetime(date),
+        # semaine d'achèvement
+        week = lubridate::floor_date(
+            x = date, 
+            unit = "week", 
+			week_start = getOption("lubridate.week.start", 1)
+        ),
+        # dans la période du rapport
+        report_period = date %within% 
+            lubridate::interval(
+                start = params$rapport_debut, 
+                end = params$rapport_fin
+            )
     )
 
 equipe_enqueteur_entretien <- enqueteur_par_equipe %>%
-    dplyr::left_join(enqueteur_par_entretien_trie, by = "interviewer")
+    dplyr::left_join(enqueteur_par_entretien, by = "interviewer")
 
 menages_ehcvm1 <- dplyr::filter(menages, s00q07d == 1)
 ```
