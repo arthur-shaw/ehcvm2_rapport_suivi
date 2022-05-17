@@ -253,6 +253,13 @@ flag_calories_low_high <- function(
 
 }
 
+#' Interview completion info
+#' 
+#' Get the date and interviewer for last completion event
+#' 
+#' @param df Interview actions data set
+#' 
+#' @importFrom dplyr `%>%` group_by filter row_number n ungroup rename select
 interview_complete <- function(df) {
 
     responsibles <- df %>%
@@ -260,8 +267,14 @@ interview_complete <- function(df) {
         dplyr::filter(responsible__role == 1) %>% # interviewer provided answers
         dplyr::filter(dplyr::row_number() == dplyr::n()) %>% # take last obs in group
         dplyr::ungroup() %>%
-        dplyr::rename(interviewer = responsible__name) %>%
-        dplyr::select(interview__id, interview__key, interviewer, date)
+        dplyr::rename(
+            interviewer_last_complete = responsible__name,
+            date_last_complete = date
+        ) %>%
+        dplyr::select(
+            interview__id, interview__key, 
+            interviewer_last_complete, date_last_complete
+        )
 
     return(responsibles)
 
