@@ -91,16 +91,71 @@ susoapi::set_credentials(
 )
 
 # =============================================================================
-# Vérifier les paramètres
+# Vérifier les paramètres fournis ci-haut
 # =============================================================================
 
-# TODO
-# - dates dans le bon format
-# - fin après début
-# - rejet_proj_dir existe
-# - main_file_dta existe
-# - dispose d'accès à l'espace de travail
-# - sup_exclus est vide ou suit le bon format
+# -----------------------------------------------------------------------------
+# Période du rapport
+# -----------------------------------------------------------------------------
+
+
+# dates dans le bon format
+invalid_start_date  <- is.na(lubridate::ymd(rapport_params$rapport_debut))
+invalid_end_date    <- is.na(lubridate::ymd(rapport_params$rapport_fin))
+
+if (invalid_start_date == TRUE | invalid_end_date == TRUE) {
+    stop(paste0(
+        "L'un des éléments de la période de suivi",
+        "--`rapport_debut` ou `rapport_fin`--ne suit pas le format voulu. ",
+        "Veuillez corriger."
+    ))
+}
+
+# date de fin intervient après la date de début
+date_start  <- lubridate::ymd(rapport_params$rapport_debut) 
+date_end    <- lubridate::ymd(rapport_params$rapport_fin)
+order_right <- (date_start < date_end)
+
+if (order_right == FALSE) {
+    stop(paste0(
+        "La période du rapport a des bornes incorrectes. ",
+        "Soit la date de début, `rapport_debut`, intervient apès la date de fin. ",
+        "Soit la date de fin, `rapport_fin`, intervient avant la date début. ",
+        "Veuillez corriger"
+    ))
+}
+
+# -----------------------------------------------------------------------------
+# Accès au serveur
+# -----------------------------------------------------------------------------
+
+if (susoapi::check_credentials(verbose = TRUE) == FALSE) {
+    stop(paste0(
+        "Les détails d'accès au serveur ne permettent pas d'accéder ",
+        "au serveur et/ou l'espace de travail. ",
+        "Veuillez corriger."
+    ))
+}
+
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
+
+# sup_exclus est vide ou suit le bon format
+sups_vide   <- rapport_params$sup_exclus == ""
+sups_list   <- unlist(strsplit(
+        x = rapport_params$sup_exclus,
+        split = ",[ ]*"
+    ))
+sups_format <- length(sups_list) >= 1
+
+if (sups_vide != TRUE & sups_list != TRUE) {
+    stop(paste0(
+        "Le paramètre `sup_exclus` ni n'est vide ni ne suit le format voulu. ",
+        "Veuillez corriger"
+    ))
+}
+
 
 # =============================================================================
 # Créer le rapport avec les paramètres indiqués ci-haut
