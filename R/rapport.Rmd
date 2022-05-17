@@ -381,6 +381,9 @@ purrr::walk2(
     )
 )
 
+community <- haven::read_dta(file = paste0(comm_combined_dir, params$comm_fichier))
+
+interview_sync_dates <- readxl::read_excel(paste0(sync_dir, "interview_sync_dates.xlsx"))
 
 purrr::walk(
     .x = c("calories_totales.dta", "calories_par_item.dta", "consommation_alimentaire_7d.dta"),
