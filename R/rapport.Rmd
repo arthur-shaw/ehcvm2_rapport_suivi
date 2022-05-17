@@ -1134,7 +1134,9 @@ taille_menage_ancien_counts <- equipe_enqueteur_entretien %>%
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
-    dplyr::ungroup() %>%
+    dplyr::ungroup()
+
+taille_menage_ancien_by_group <- taille_menage_ancien_counts %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
