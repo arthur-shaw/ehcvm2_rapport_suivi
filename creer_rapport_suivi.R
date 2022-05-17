@@ -156,6 +156,69 @@ if (sups_vide != TRUE & sups_list != TRUE) {
     ))
 }
 
+# =============================================================================
+# Télécharger les données nécessaires
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Définir les dossiers pour le téléchargement
+# -----------------------------------------------------------------------------
+
+# scripts
+script_dir <- paste0(rapport_params$proj_dir, "R/")
+# données
+data_dir <- paste0(rapport_params$proj_dir, "data/") # /data/
+hhold_dir <- paste0(data_dir, "hhold/")
+comm_dir <- paste0(data_dir, "community/")
+sync_dir <- paste0(data_dir, "sync/")
+# ménage
+hh_resource_dir <- paste0(hhold_dir, "00_resource/")  # /00_resource/
+hh_download_dir <- paste0(hhold_dir, "01_downloaded/")  # /01_downloaded/
+hh_combined_dir <- paste0(hhold_dir, "02_combined/")  # /02_combined/
+hh_derived_dir <- paste0(hhold_dir, "03_derived/")   # /03_derived/
+# communautaire
+comm_download_dir <- paste0(comm_dir, "01_downloaded/")  # /01_downloaded/
+comm_combined_dir <- paste0(comm_dir, "02_combined/")  # /02_combined/
+
+# -----------------------------------------------------------------------------
+# Ménage
+# -----------------------------------------------------------------------------
+
+# Accomplit les tâches suivants:
+# - purger les anciennes données
+# - télécharger la version actuelle de toutes les données
+# - décomprimer les archives zip
+# - joindre toutes les bases du même nom
+# - sauvegarder le résultat
+source(paste0(script_dir, "get_hhold_data.R"))
+source(paste0(script_dir, "unpack_and_combine_hhold.R"))
+
+# -----------------------------------------------------------------------------
+# Communautaire
+# -----------------------------------------------------------------------------
+
+# Accomplit les tâches suivants:
+# - purger les anciennes données
+# - télécharger la version actuelle de toutes les données
+# - décomprimer les archives zip
+# - joindre toutes les bases du même nom
+# - sauvegarder le résultat
+source(paste0(script_dir, "get_community_data.R"))
+source(paste0(script_dir, "unpack_and_combine_community.R"))
+
+# -----------------------------------------------------------------------------
+# Synchronisation
+# -----------------------------------------------------------------------------
+
+# obtenir les métadonnées concernant la dernière mise à jour de chaque entretien
+interview_sync_dates <- susoapi::get_interviews(workspace = rapport_params$workspace)
+
+# sauvegarder pour utilisation ultérieure
+writexl::write_xlsx(
+    x = interview_sync_dates,
+    path = paste0(sync_dir, "interview_sync_dates.xlsx")
+)
+
 
 # =============================================================================
 # Créer le rapport avec les paramètres indiqués ci-haut
