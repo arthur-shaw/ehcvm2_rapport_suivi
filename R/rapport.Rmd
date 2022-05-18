@@ -1373,11 +1373,12 @@ n_produits_this_week <- dplyr::bind_rows(
 ## 8.1 Totales
 
 ```{r calories_total}
-calories_tbl <- equipe_enqueteur_entretien %>%
+calories_frame <- equipe_enqueteur_entretien %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::left_join(calories_totales, by = c("interview__id", "interview__key")) %>%
-    dplyr::mutate(n_entretiens = !is.na(interview__id)) %>%
-    # filter out team obs with no interview
-    dplyr::filter(n_entretiens > 0) %>%
+    dplyr::mutate(n_entretiens = !is.na(interview__id))
+
+calories_by_group <- calories_frame %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_entretiens = sum(n_entretiens, na.rm = TRUE),       
@@ -1393,6 +1394,27 @@ calories_tbl <- equipe_enqueteur_entretien %>%
     ) %>%
     dplyr::ungroup() %>%
     replace_nan_inf()
+
+calories_overall <- calories_frame %>%
+    dplyr::summarise(
+        n_entretiens = sum(n_entretiens, na.rm = TRUE),       
+        dplyr::across(
+            .cols = c(n_consomme, p_calcule),
+            .fns = ~ mean(.x, na.rm = TRUE)
+        ),
+        minimum = fivenum(calories_totales)[1], 
+        lower_hinge = fivenum(calories_totales)[2], 
+        median = fivenum(calories_totales)[3], 
+        upper_hinge = fivenum(calories_totales)[4], 
+        maximum = fivenum(calories_totales)[5]        
+    ) %>%
+    replace_nan_inf() %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::relocate(supervisor)
+
+calories_tbl <- dplyr::bind_rows(
+    calories_overall, calories_by_group
+)
 
 calories_tbl %>%
 gt::gt(rowname_col = "supervisor") %>%
