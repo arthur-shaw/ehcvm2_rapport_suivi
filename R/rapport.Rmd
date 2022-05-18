@@ -1569,7 +1569,8 @@ style_table()
 # 9. Mesure de surface par GPS
 
 ```{r plot_gps}
-gps_stats <- equipe_enqueteur_entretien %>%
+gps_stats_counts <- equipe_enqueteur_entretien %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::left_join(parcelles, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_parcelles = !is.na(parcelles__id),
@@ -1588,7 +1589,9 @@ gps_stats <- equipe_enqueteur_entretien %>%
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
-    dplyr::ungroup() %>%
+    dplyr::ungroup()
+
+gps_stats_by_group <- gps_stats_counts %>%
     dplyr::mutate(
         p_non_gps = n_non_gps / n_parcelles,
         dplyr::across(
@@ -1597,6 +1600,28 @@ gps_stats <- equipe_enqueteur_entretien %>%
         )
     ) %>%
     replace_nan_inf()
+
+gps_stats_by_overall <- gps_stats_counts %>%
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(n_entretiens, n_parcelles, n_non_gps, petit, panne, indisponible, loin, autre),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) %>%
+    dplyr::mutate(
+        p_non_gps = n_non_gps / n_parcelles,
+        dplyr::across(
+            .cols = c(petit, panne, indisponible, loin, autre),
+            .fns = ~ .x / n_non_gps
+        )
+    ) %>%
+    replace_nan_inf() %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::relocate(supervisor)
+
+gps_stats <- dplyr::bind_rows(
+    gps_stats_by_overall, gps_stats_by_group
+)
 
 gps_stats %>%
 gt::gt(rowname_col = "supervisor") %>%
