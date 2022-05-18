@@ -1456,7 +1456,8 @@ style_table()
 ## 8.2 Part des groupes
 
 ```{r calories_p_group}
-calories_groupe_tbl <- equipe_enqueteur_entretien %>%
+calories_groupe_counts <- equipe_enqueteur_entretien %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::left_join(calories_par_item, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         groupe = dplyr::case_when(
@@ -1492,7 +1493,9 @@ calories_groupe_tbl <- equipe_enqueteur_entretien %>%
             .fns = ~ sum(.x, na.rm = TRUE)
         )        
     ) %>%
-    dplyr::ungroup() %>%
+    dplyr::ungroup() 
+    
+calories_groupe_by_group <- calories_groupe_counts %>%
     dplyr::mutate(
         dplyr::across(
             .cols = dplyr::starts_with("p_"),
@@ -1506,6 +1509,32 @@ calories_groupe_tbl <- equipe_enqueteur_entretien %>%
         p_legumes, p_legtub, p_sucreries, p_epices, p_boissons
     ) %>%
     replace_nan_inf()
+
+calories_groupe_overall <- calories_groupe_counts %>%
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(n_menages, dplyr::starts_with("p_"), calories_totales),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )        
+    ) %>%
+    dplyr::mutate(
+        dplyr::across(
+            .cols = dplyr::starts_with("p_"),
+            .fns = ~ .x / calories_totales
+        )
+    ) %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::select(
+        supervisor,
+        n_menages,
+        p_cereales, p_viandes, p_poissons, p_laitier, p_huiles, p_fruits, 
+        p_legumes, p_legtub, p_sucreries, p_epices, p_boissons
+    ) %>%
+    replace_nan_inf()
+
+calories_groupe_tbl <- dplyr::bind_rows(
+    calories_groupe_overall, calories_groupe_by_group
+)
 
 calories_groupe_tbl %>%
 gt::gt(rowname_col = "supervisor") %>%
