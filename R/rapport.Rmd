@@ -1969,6 +1969,82 @@ reactable::reactable(
 
 ```
 
-## 10.2 Tendances
+# 11. Fréquence d'erreur de validation
 
-TODO
+```{r validation_errors}
+
+validation_errors <- suso_errors |>
+    dplyr::left_join(equipe_enqueteur_entretien, by = c("interview__id", "interview__key")) |>
+    dplyr::filter(message != "" & !is.na(message)) |>
+    dplyr::group_by(message, week) |>
+    dplyr::summarise(
+        message_this_week = sum(report_period == TRUE),
+        n_messages = dplyr::n()
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::arrange(week) |>
+    dplyr::group_by(message) |>
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(message_this_week, n_messages),
+            ..fns = ~ sum(.x, na.rm = TRUE)
+        ),
+        trend_messages = list(n_messages)
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(message, message_this_week, trend_messages) |>
+    dplyr::arrange(desc(message_this_week))
+
+reactable::reactable(
+    data = validation_errors,
+    columns = list(
+        message = reactable::colDef(
+            name = "Erreur de validation",
+            width = 200
+        ),
+        message_this_week = reactable::colDef(
+            name = "Du rapport",
+            width = 100
+        ),
+        trend_messages = reactable::colDef(
+            name = "De l'enquête",
+            width = 300,
+            cell = function(value, index) {
+                dataui::dui_sparkline(
+                    data = value,
+                    components = list(
+                        dataui::dui_sparklineseries(
+                            # styling
+                            stroke = "red",
+                            showArea = TRUE,
+                            fill = "red"
+                        ),
+                        dataui::dui_tooltip(
+                            dataui::dui_sparkpointseries(
+                                #styling
+                                stroke = "red",
+                                fill = "#fff",
+                                #litle extra interactivity for demostration purposes
+                                renderLabel = htmlwidgets::JS("(d) => d.toFixed(2)")
+                            )
+                        )
+                    )
+                )
+            }
+        )
+    ),
+    columnGroups = list(
+        reactable::colGroup(
+            name = "Pendant la période ...",
+            columns = c("message_this_week", "trend_messages")
+        )
+    ),    
+    striped = TRUE,
+    searchable = TRUE,
+    compact = TRUE,
+    fullWidth = FALSE,
+    theme = reactable_style,
+    language = reactable_fr    
+)
+
+```
