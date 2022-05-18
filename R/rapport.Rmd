@@ -1094,21 +1094,107 @@ taille_menage_overall <- taille_menage_by_interview %>%
     dplyr::mutate(supervisor = "Ensemble") %>%
     dplyr::relocate(supervisor)
 
-taille_menage_tbl %>%
-gt::gt(rowname_col = "supervisor") %>%
-gt::tab_header(
-    title = "Taille du ménage",
-    subtitle = "Tous les ménages"
-) %>%
-gt::cols_label(
-    n_menages = gt::html("Entretiens<br>(N)"),
-    minimum = "Min",
-    lower_hinge = "Q1",
-    median = "Méd",
-    upper_hinge = "Q3",
-    maximum = "Max"
-) %>%
-style_table()
+taille_menage_this_week <- dplyr::bind_rows(taille_menage_overall, taille_menage_by_group)
+    
+# trend over time
+taille_menage_trend_by_group <- taille_menage_by_interview |>
+    # supervisor-week medians
+    dplyr::group_by(supervisor, week) %>%
+    dplyr::summarise(n_membres = median(n_membres, na.rm = TRUE)) |>
+    dplyr::ungroup() |>
+    # supervisor-level series
+    dplyr::arrange(supervisor, week) |>
+    dplyr::group_by(supervisor) |>
+    dplyr::summarise(taille_trend = list(n_membres)) |>
+    dplyr::ungroup()
+
+taille_menage_trend_overall <- taille_menage_by_interview |>
+    # week medians
+    dplyr::group_by(week) %>%
+    dplyr::summarise(n_membres = median(n_membres, na.rm = TRUE)) |>
+    dplyr::ungroup() |>
+    # series
+    dplyr::arrange(week) |>
+    dplyr::summarise(taille_trend = list(n_membres)) |>
+    dplyr::mutate(supervisor = "Ensemble") |>
+    dplyr::relocate(supervisor)
+
+taille_menage_trend <- dplyr::bind_rows(
+    taille_menage_trend_overall, taille_menage_trend_by_group
+)
+
+# combine week and trend data
+taille_menage_tbl <- taille_menage_this_week |>
+    dplyr::full_join(taille_menage_trend, by = "supervisor")
+
+# compose table
+reactable::reactable(
+    data = taille_menage_tbl,
+    defaultColDef = reactable::colDef(
+        width = 75
+    ),
+    columns = list(
+        supervisor = reactable::colDef(
+            name = "Équipe",
+            width = 120
+        ),
+        n_menages = reactable::colDef(
+            name = "N. Ménages",
+            width = 100
+        ),
+        minimum = reactable::colDef(name = "Min"),
+        lower_hinge = reactable::colDef(name = "Q1"),
+        median = reactable::colDef("Méd"),
+        upper_hinge = reactable::colDef("Q3"),
+        maximum = reactable::colDef("Max"),
+        taille_trend = reactable::colDef(
+            name = "Tendance",
+            width = 400,
+            cell = function(value, index) {
+                dataui::dui_sparkline(
+                    data = value,
+                    components = list(
+                        dataui::dui_sparklineseries(
+                            # styling
+                            stroke = "#7E9384",
+                            showArea = TRUE,
+                            fill = "#7E9384"
+                        ),
+                        dataui::dui_tooltip(
+                            dataui::dui_sparkpointseries(
+                                #styling
+                                stroke = "#7E9384",
+                                fill = "#fff",
+                                #litle extra interactivity for demostration purposes
+                                renderLabel = htmlwidgets::JS("(d) => d.toFixed(2)")
+                            )
+                        )
+                    )
+                )
+            }
+        )
+    ),
+    columnGroups = list(
+        reactable::colGroup(
+            name = "Période du rapport",
+            columns = c(
+                "n_menages", 
+                "minimum", "lower_hinge", "median", "upper_hinge", "maximum"
+            )
+        ),
+        reactable::colGroup(
+            name = "Période de l'enquête",
+            columns = "taille_trend"
+        )
+    ),
+    striped = TRUE,
+    sortable = TRUE,
+    searchable = TRUE,
+    fullWidth = FALSE,
+    compact = TRUE,
+    theme = reactable_style,
+    language = reactable_fr  
+)
 
 ```
 
@@ -1436,6 +1522,106 @@ n_produits_overall <- n_produits_by_interview %>%
 
 n_produits_this_week <- dplyr::bind_rows(
     n_produits_overall, n_produits_by_group
+)
+
+# trend over time
+n_produits_trend_by_group <- n_produits_by_interview |>
+    # supervisor-week medians
+    dplyr::group_by(supervisor, week) %>%
+    dplyr::summarise(count_produits = median(count_produits, na.rm = TRUE)) |>
+    dplyr::ungroup() |>
+    # supervisor-level series
+    dplyr::arrange(supervisor, week) |>
+    dplyr::group_by(supervisor) |>
+    dplyr::summarise(n_produits_trend = list(count_produits)) |>
+    dplyr::ungroup()
+
+n_produits_trend_overall <- n_produits_by_interview |>
+    # week medians
+    dplyr::group_by(week) %>%
+    dplyr::summarise(count_produits = median(count_produits, na.rm = TRUE)) |>
+    dplyr::ungroup() |>
+    # series
+    dplyr::arrange(week) |>
+    dplyr::summarise(n_produits_trend = list(count_produits)) |>
+    dplyr::mutate(supervisor = "Ensemble") |>
+    dplyr::relocate(supervisor)
+
+n_produits_trend <- dplyr::bind_rows(
+    n_produits_trend_overall, n_produits_trend_by_group
+)
+
+# combine week and trend data
+n_produits_tbl <- n_produits_this_week |>
+    dplyr::full_join(n_produits_trend, by = "supervisor")
+
+# compose table
+reactable::reactable(
+    data = n_produits_tbl,
+    defaultColDef = reactable::colDef(
+        width = 75
+    ),    
+    columns = list(
+        supervisor = reactable::colDef(
+            name = "Équipe",
+            width = 150
+        ),
+        n_entretiens = reactable::colDef(
+            name = "N. Ménages",
+            width = 100
+        ),
+        minimum = reactable::colDef(name = "Min"),
+        lower_hinge = reactable::colDef(name = "Q1"),
+        median = reactable::colDef("Méd"),
+        upper_hinge = reactable::colDef("Q3"),
+        maximum = reactable::colDef("Max"),
+        n_produits_trend = reactable::colDef(
+            name = "Tendance",
+            width = 400,
+            cell = function(value, index) {
+                dataui::dui_sparkline(
+                    data = value,
+                    components = list(
+                        dataui::dui_sparklineseries(
+                            # styling
+                            stroke = "#7E9384",
+                            showArea = TRUE,
+                            fill = "#7E9384"
+                        ),
+                        dataui::dui_tooltip(
+                            dataui::dui_sparkpointseries(
+                                #styling
+                                stroke = "#7E9384",
+                                fill = "#fff",
+                                #litle extra interactivity for demostration purposes
+                                renderLabel = htmlwidgets::JS("(d) => d.toFixed(2)")
+                            )
+                        )
+                    )
+                )
+            }
+        )        
+    ),
+    columnGroups = list(
+        reactable::colGroup(
+            name = "Période du rapport",
+            columns = c(
+                "n_entretiens", 
+                "minimum", "lower_hinge", "median", "upper_hinge", "maximum"
+            )
+        ),
+        reactable::colGroup(
+            name = "Période de l'enquête",
+            columns = "n_produits_trend"
+        )
+    ),
+    striped = TRUE,
+    sortable = TRUE,
+    searchable = TRUE,
+    fullWidth = FALSE,
+    compact = TRUE,
+    theme = reactable_style,
+    language = reactable_fr      
 )
 
 ```
