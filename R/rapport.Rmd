@@ -1202,7 +1202,8 @@ style_table()
 # 5 Déplacement de l'âge
 
 ```{r age_disp}
-age_stats <- equipe_enqueteur_entretien %>%
+age_stats_counts <- equipe_enqueteur_entretien %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
     dplyr::filter((is.na(preload_pid)) | (!is.na(preload_pid) & s01q00a == 1)) %>%
@@ -1212,19 +1213,19 @@ age_stats <- equipe_enqueteur_entretien %>%
         age_4 = AgeAnnee == 4,
         age_5 = AgeAnnee == 5,
         age_6 = AgeAnnee == 6,
-        age_7 = AgeAnnee == 7
+        age_7 = AgeAnnee == 7,
+        n_members_in_range = AgeAnnee %in% c(2:7)
     ) %>%
     dplyr::group_by(interview__id, interview__key, supervisor) %>%
     dplyr::summarise(
-        n_members_in_range = AgeAnnee %in% c(2:7), 
         dplyr::across(
-            .cols = dplyr::starts_with("age_"),
+            .cols = c(n_members_in_range, dplyr::starts_with("age_")),
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
     dplyr::ungroup()
 
-taille_menage_ancien_by_group <- taille_menage_ancien_counts %>%
+age_stats_by_group <- age_stats_counts %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
@@ -1239,6 +1240,26 @@ taille_menage_ancien_by_group <- taille_menage_ancien_counts %>%
         ratio_extended = (age_5 + age_6)/(age_3 + age_4)
     ) %>%
     replace_nan_inf()
+
+age_stats_overall <- age_stats_counts %>%
+    dplyr::summarise(
+        n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(n_members_in_range, dplyr::starts_with("age_")),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )        
+    ) %>%
+    dplyr::mutate(
+        ratio = age_5/age_4,
+        ratio_extended = (age_5 + age_6)/(age_3 + age_4)
+    ) %>%
+    replace_nan_inf() %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::relocate(supervisor)
+
+age_stats <- dplyr::bind_rows(
+    age_stats_overall, age_stats_by_group
+)
 
 age_stats %>%
 gt::gt(rowname_col = "supervisor") %>%
