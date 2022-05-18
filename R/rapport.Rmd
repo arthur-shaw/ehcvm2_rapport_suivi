@@ -1868,32 +1868,93 @@ reactable::reactable(
 
 ```
 
+## 10.2 Par motif
 
 ```{r errors_freq}
-erreurs_avant <- comments %>%
+
+errors <- comments %>%
     dplyr::filter(stringr::str_starts(variable, "@@Rejected")) %>%
     tidyr::separate_rows(sep = "\n") %>%
-    dplyr::select(interview__id, interview__key, comment) %>%
-    dplyr::rename(erreur = comment)
-
-erreurs_maintenant <- haven::read_dta(file = paste0(output_dir, "to_reject_issues.dta")) %>%
-    dplyr::filter(issue_type == 1) %>%
-    dplyr::select(interview__id, interview__key, issue_comment) %>%
-    dplyr::rename(erreur = issue_comment)
-
-erreurs <- dplyr::bind_rows(erreurs_avant, erreurs_maintenant) %>%
-    dplyr::distinct(interview__id, interview__key, erreur) %>%
-    dplyr::count(erreur) %>%
-    dplyr::arrange(dplyr::desc(n))
+    dplyr::select(interview__id, interview__key, error = comment, date) %>%
+    dplyr::mutate(
+        date = lubridate::ymd(date),
+		week = lubridate::floor_date(
+            date, 
+            unit = "week", 
+			week_start = getOption("lubridate.week.start", 1)
+        ),        
+        error_this_week = date %within% 
+            lubridate::interval(
+                start = lubridate::ymd(params$rapport_debut), 
+                end = lubridate::ymd(params$rapport_fin)
+            )
+    ) %>%
+    dplyr::arrange(error, week) %>%
+    dplyr::group_by(error, week) %>%
+    dplyr::summarise(
+        error_this_week = sum(error_this_week, na.rm = TRUE),
+        n_errors = dplyr::n()
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(error) %>%
+    dplyr::summarise(
+        error_this_week = sum(error_this_week, na.rm = TRUE),
+        error_series = list(n_errors)
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::arrange(dplyr::desc(error_this_week))
 
 reactable::reactable(
-    data = erreurs,
+    data = errors,
+    columns = list(
+        error = reactable::colDef(
+            name = "Erreur",
+            width = 300
+        ),
+        error_this_week = reactable::colDef(
+            name = "Du rapport",
+            width = 150
+        ),
+        error_series = reactable::colDef(
+            name = "De l'enquête",
+            width = 300,
+            cell = function(value, index) {
+                dataui::dui_sparkline(
+                    data = value,
+                    components = list(
+                        dataui::dui_sparklineseries(
+                            # styling
+                            stroke = "red",
+                            showArea = TRUE,
+                            fill = "red"
+                        ),
+                        dataui::dui_tooltip(
+                            dataui::dui_sparkpointseries(
+                                #styling
+                                stroke = "red",
+                                fill = "#fff",
+                                #litle extra interactivity for demostration purposes
+                                renderLabel = htmlwidgets::JS("(d) => d.toFixed(2)")
+                            )
+                        )
+                    )
+                )
+            }            
+        )
+    ),
+    columnGroups = list(
+        reactable::colGroup(
+            name = "Pendant la période ...",
+            columns = c("error_this_week", "error_series")            
+        )
+    ),
     striped = TRUE,
     sortable = TRUE, 
     searchable = TRUE,
     compact = TRUE,
-    theme = reactableTheme(
+    theme = reactable::reactableTheme(
         headerStyle = list(color = "#ffffff", background = "#0F2B1D"),
+        groupHeaderStyle = list(color = "#ffffff", background = "#0F2B1D"),
         stripedColor = "#edfaea",
         searchInputStyle = list(
             backgroundColor = "#edfaea",
@@ -1903,12 +1964,9 @@ reactable::reactable(
             "&:hover, &:focus" = list(borderWidth = "thick", borderColor = "#8cc0a5"),
             "&:hover::placeholder, &:focus::placeholder" = list(color = "#8cc0a5")            
         )
-    ),
-    columns = list(
-        erreur = reactable::colDef(name = "Erreur"),
-        n = reactable::colDef(name = "Fréquence")
-    )    
+    ) 
 )
+
 ```
 
 ## 10.2 Tendances
