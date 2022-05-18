@@ -1557,7 +1557,11 @@ gt::tab_spanner(
     label = "Part du groupe (%)",
     columns = dplyr::starts_with("p_")
 ) %>%
-gt::fmt_percent(columns = dplyr::starts_with("p_")) %>%
+gt::fmt_number(
+    columns = dplyr::starts_with("p_"),
+    decimals = 2,
+    scale_by = 100
+) %>%
 style_table()
 
 ```
