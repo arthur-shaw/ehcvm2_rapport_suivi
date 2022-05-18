@@ -933,7 +933,7 @@ gt::tab_spanner(
 style_table()
 ```
 
-# 3.2 Anciens ménages
+## 3.2 Anciens ménages
 
 ```{r response_panel}
 reponse_anciens_menages_counts <- equipe_enqueteur_entretien %>%
