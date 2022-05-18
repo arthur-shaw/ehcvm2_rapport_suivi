@@ -1313,20 +1313,28 @@ TODO
 # 7. Nombre de produits alimentaires consommés
 
 ```{r num_products}
-n_produits_tbl <- equipe_enqueteur_entretien %>%
+# counts by interview
+n_produits_by_interview <- equipe_enqueteur_entretien %>%
     dplyr::left_join(consommation_alimentaire_7d, by = c("interview__id", "interview__key")) %>%
+    # create indicator for each non-null record
     dplyr::mutate(
         count_produits = !is.na(interview__id)
     ) %>%
+    # 
     dplyr::group_by(interview__id, interview__key, supervisor) %>%
     dplyr::summarise(
-        count_produits = sum(count_produits, na.rm = TRUE),
         n_entretiens = dplyr::n_distinct(interview__id, na.rm = TRUE),
+        count_produits = sum(count_produits, na.rm = TRUE),
+        dplyr::across(
+            .cols = c(report_period, week),
+            .fns = ~ dplyr::first(.x)            
+        )
     ) %>%
-    dplyr::ungroup() %>%
-    # filter out supervisors with no households
-    # TODO: revisit how to do this so that supervisors with no households remain
-    dplyr::filter(n_entretiens > 0) %>%    
+    dplyr::ungroup()
+    
+# report week stats
+n_produits_by_group <- n_produits_by_interview %>%
+    dplyr::filter(report_period == TRUE) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_entretiens = sum(n_entretiens, na.rm = TRUE),
@@ -1335,22 +1343,28 @@ n_produits_tbl <- equipe_enqueteur_entretien %>%
         median = fivenum(count_produits)[3], 
         upper_hinge = fivenum(count_produits)[4], 
         maximum = fivenum(count_produits)[5]
-    ) %>%
+    ) %>%   
     dplyr::ungroup() %>%
     replace_nan_inf()
 
-n_produits_tbl %>%
-gt::gt(rowname_col = "supervisor") %>%
-gt::tab_header(title = "Nombre de produits consommés") %>%
-gt::cols_label(
-    n_entretiens = gt::html("Entretiens<br>(N)"),
-    minimum = "Min",
-    lower_hinge = "Q1",
-    median = "Méd",
-    upper_hinge = "Q3",
-    maximum = "Max"
-) %>%
-style_table()
+n_produits_overall <- n_produits_by_interview %>%
+    dplyr::filter(report_period == TRUE) %>%
+    dplyr::summarise(
+        n_entretiens = sum(n_entretiens, na.rm = TRUE),
+        minimum = fivenum(count_produits)[1], 
+        lower_hinge = fivenum(count_produits)[2], 
+        median = fivenum(count_produits)[3], 
+        upper_hinge = fivenum(count_produits)[4], 
+        maximum = fivenum(count_produits)[5]
+    ) %>%   
+    dplyr::ungroup() %>%
+    replace_nan_inf() %>%
+    dplyr::mutate(supervisor = "Ensemble") %>%
+    dplyr::relocate(supervisor)
+
+n_produits_this_week <- dplyr::bind_rows(
+    n_produits_overall, n_produits_by_group
+)
 
 ```
 
