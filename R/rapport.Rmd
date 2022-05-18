@@ -1437,6 +1437,12 @@ gt::tab_spanner(
     label = "Distribution de calories",
     columns = c(minimum, lower_hinge, median, upper_hinge, maximum)
 ) %>%
+gt::tab_style(
+    style = gt::cell_fill(color = "#7E9384", alpha = 0.25),
+    locations = gt::cells_body(
+        columns = median, rows = dplyr::everything()
+    )
+) %>%
 gt::fmt_percent(columns = p_calcule) %>%
 gt::fmt_number(
     columns = c(minimum, lower_hinge, median, upper_hinge, maximum),
