@@ -1638,10 +1638,10 @@ gt::cols_label(
     n_entretiens = gt::html("Entretiens<br>(N)"),
     n_parcelles = gt::html("Parcelles<br>(N)"),
     n_non_gps = gt::html("Sans mesure<br>(N)"),
-    petit = "Trop petite",
-    panne = "GPS en panne",
-    indisponible = "Ménage indisponible",
-    loin = "Trop éloignée",
+    petit = gt::html("Trop<br>petite"),
+    panne = gt::html("GPS en<br>panne"),
+    indisponible = gt::html("Ménage<br>indisponible"),
+    loin = gt::html("Trop<br>éloignée"),
     autre = "Autre"
 ) %>%
 gt::tab_spanner(
