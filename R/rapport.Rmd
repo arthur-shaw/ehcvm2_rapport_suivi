@@ -1729,9 +1729,145 @@ style_table()
 
 ```
 
-# 10. Erreurs de rejet
+# 10. Fréquence de rejet
 
-## 10.1 Les plus fréquentes
+## 10.1 Par équipe
+
+```{r}
+
+# for %within%
+library(lubridate)
+
+reject_actions <- c(
+    7,  # RejectedBySupervisor
+    8   # RejectedByHeadquarter
+)
+
+rejections_count <- equipe_enqueteur_entretien |>
+    dplyr::select(-date) |>
+    dplyr::left_join(suso_actions, by = c("interview__id", "interview__key")) |>
+    dplyr::mutate(
+        rejected = action %in% reject_actions,
+        date = lubridate::ymd(date),
+		week = lubridate::floor_date(
+            lubridate::ymd(date), 
+            unit = "week", 
+			week_start = getOption("lubridate.week.start", 1)
+        ),        
+        this_week = date %within% 
+            lubridate::interval(
+                start = lubridate::ymd(params$rapport_debut), 
+                end = lubridate::ymd(params$rapport_fin)
+            ),
+        rejected_this_week = rejected == 1 & this_week == 1
+    ) |>
+    dplyr::select(
+        supervisor, interviewer, week,
+        rejected, rejected_this_week
+    ) |>
+    dplyr::arrange(supervisor, week) |>
+    dplyr::group_by(supervisor, week) |>
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(rejected, rejected_this_week),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )
+    ) |>
+    dplyr::ungroup()
+
+rejections_by_group <- rejections_count |>
+    dplyr::group_by(supervisor) |>
+    dplyr::summarise(
+        rejected_this_week = sum(rejected_this_week, na.rm = TRUE),
+        rejected_series = list(rejected)
+    ) |>
+    dplyr::ungroup()
+
+rejections_overall <- rejections_count |>
+    dplyr::group_by(week) |>
+    dplyr::summarise(
+        dplyr::across(
+            .cols = c(rejected, rejected_this_week),
+            .fns = ~ sum(.x, na.rm = TRUE)
+        )        
+    ) |>
+    dplyr::arrange(week) |>
+    dplyr::summarise(
+        rejected_this_week = sum(rejected_this_week, na.rm = TRUE),
+        rejected_series = list(rejected)
+    ) |>
+    dplyr::mutate(supervisor = "Ensemble") |>
+    dplyr::relocate(supervisor)
+
+rejections <- dplyr::bind_rows(
+    rejections_overall, rejections_by_group
+)
+
+reactable::reactable(
+    data = rejections,
+    columns = list(
+        supervisor = reactable::colDef(
+            name = "Équipe",
+            width = 150
+        ),
+        rejected_this_week = reactable::colDef(
+            name = "Du rapport",
+            width = 150
+        ),
+        rejected_series = reactable::colDef(
+            name = "De l'enquête",
+            width = 300,
+            cell = function(value, index) {
+                dataui::dui_sparkline(
+                    data = value,
+                    components = list(
+                        dataui::dui_sparklineseries(
+                            # styling
+                            stroke = "red",
+                            showArea = TRUE,
+                            fill = "red"
+                        ),
+                        dataui::dui_tooltip(
+                            dataui::dui_sparkpointseries(
+                                #styling
+                                stroke = "red",
+                                fill = "#fff",
+                                #litle extra interactivity for demostration purposes
+                                renderLabel = htmlwidgets::JS("(d) => d.toFixed(2)")
+                            )
+                        )
+                    )
+                )
+            }            
+        )
+    ),
+    columnGroups = list(
+        reactable::colGroup(
+            name = "Pendant la période ...",
+            columns = c("rejected_this_week", "rejected_series")
+        )
+    ),
+    striped = TRUE,
+    searchable = TRUE,
+    compact = TRUE,
+    fullWidth = FALSE,
+    theme = reactable::reactableTheme(
+        headerStyle = list(color = "#ffffff", background = "#0F2B1D"),
+        groupHeaderStyle = list(color = "#ffffff", background = "#0F2B1D"),
+        stripedColor = "#edfaea",
+        searchInputStyle = list(
+            backgroundColor = "#edfaea",
+            borderColor = "#8cc0a5",
+            borderWidth = "medium",
+            "&:focus" = list(backgroundColor = "#edfaea", borderWidth = "thick", borderColor = "#0F2B1D"),
+            "&:hover, &:focus" = list(borderWidth = "thick", borderColor = "#8cc0a5"),
+            "&:hover::placeholder, &:focus::placeholder" = list(color = "#8cc0a5")            
+        )
+    )
+)
+
+```
+
 
 ```{r errors_freq}
 erreurs_avant <- comments %>%
