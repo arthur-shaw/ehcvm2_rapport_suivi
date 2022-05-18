@@ -1308,7 +1308,79 @@ style_table()
 
 # 6. Branche d'activité
 
-TODO
+```{r branche_text}
+
+job_info <- equipe_enqueteur_entretien |>
+    dplyr::filter(report_period == TRUE) |>
+    dplyr::left_join(membres, by = c("interview__id", "interview__key")) |>
+    dplyr::select(
+        interview__id, interview__key, dplyr::matches("__id$"),
+        s04q30a, s04q30b, # primary
+        s04q52a, s04q52b # secondary
+    )
+
+job1 <- job_info |>
+    dplyr::mutate(emploi = "primaire") |>
+    dplyr::select(
+        interview__id, interview__key, dplyr::matches("__id$"),
+        emploi,
+        activity_desc = s04q30a, 
+        activity_code = s04q30b
+    )
+
+job2 <- job_info |>
+    dplyr::mutate(emploi = "secondaire") |>
+    dplyr::select(
+        interview__id, interview__key, dplyr::matches("__id$"),
+        emploi,
+        activity_desc = s04q52a, 
+        activity_code = s04q52b        
+    )
+
+jobs <- dplyr::bind_rows(job1, job2) |>
+    dplyr::filter(activity_code == 7) |>
+    dplyr::select(-activity_code)
+
+reactable::reactable(
+    data = jobs,
+    columns = list(
+        interview__id = reactable::colDef(
+            name = "id",
+            width = 300
+        ),
+        interview__key = reactable::colDef(
+            name = "key",
+            width = 100
+        ),
+        membres__id = reactable::colDef(
+            name = "pid",
+            width = 75
+        ),
+        emploi = reactable::colDef(
+            name = "Emploi",
+            width = 100
+        ),
+        activity_desc = reactable::colDef(
+            name = "Activité",
+            width = 300
+        )
+    ),
+    columnGroups = list(
+        reactable::colGroup(
+            name = "Identifiants",
+            columns = c("interview__id", "interview__key", "membres__id")
+        )
+    ),
+    striped = TRUE,
+    sortable = TRUE,
+    filterable = TRUE,
+    fullWidth = FALSE,
+    compact = TRUE,
+    theme = reactable_style,
+    language = reactable_fr    
+)
+
+```
 
 # 7. Nombre de produits alimentaires consommés
 
