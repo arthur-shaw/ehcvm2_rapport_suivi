@@ -149,7 +149,7 @@ sups_list   <- unlist(strsplit(
     ))
 sups_format <- length(sups_list) >= 1
 
-if (sups_vide != TRUE & sups_list != TRUE) {
+if (sups_vide != TRUE & sups_format != TRUE) {
     stop(paste0(
         "Le paramètre `sup_exclus` ni n'est vide ni ne suit le format voulu. ",
         "Veuillez corriger"
