@@ -467,7 +467,7 @@ gauge_n_menages <- echarts4r::e_charts() |>
     )
 
 dr_attendus <- params$n_dr
-dr_acheves <- dplyr::distinct(community, !!rlang::data_sym(params$grappe_var))
+dr_acheves <- dplyr::distinct(community, !!rlang::data_sym(params$grappe_var)) |> nrow()
 
 gauge_n_dr <- echarts4r::e_charts() |>
     echarts4r::e_gauge(
