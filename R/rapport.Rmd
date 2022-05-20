@@ -426,7 +426,7 @@ purrr::walk(
 menages_attendus <- params$n_dr * params$n_menages_dr
 menages_acheves <- nrow(menages)
 
-guage_n_menages <- echarts4r::e_charts() |>
+gauge_n_menages <- echarts4r::e_charts() |>
     echarts4r::e_gauge(
         value = round(100 * (menages_acheves / menages_attendus), digits = 1),
         name = glue::glue("{menages_acheves} / {menages_attendus}"),
@@ -509,7 +509,7 @@ gauge_n_dr <- echarts4r::e_charts() |>
         )
     )
 
-echarts4r::e_arrange(guage_n_menages, gauge_n_dr, rows = 1, cols = 2)
+echarts4r::e_arrange(gauge_n_menages, gauge_n_dr, rows = 1, cols = 2)
 
 ```
 
