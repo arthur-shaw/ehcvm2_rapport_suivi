@@ -129,7 +129,12 @@ if (order_right == FALSE) {
 # Accès au serveur
 # -----------------------------------------------------------------------------
 
-if (susoapi::check_credentials(verbose = TRUE) == FALSE) {
+verification_acces <- susoapi::check_credentials(
+    workspace = rapport_params$workspace, 
+    verbose = TRUE
+)
+
+if (verification_acces == FALSE) {
     stop(paste0(
         "Les détails d'accès au serveur ne permettent pas d'accéder ",
         "au serveur et/ou l'espace de travail. ",
