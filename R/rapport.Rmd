@@ -319,6 +319,55 @@ interview_date <- function(df) {
 
 }
 
+#' Load the full Stata data
+#' 
+#' Ingest data from .dta files
+#' 
+#' @param dir Character. Directory where Stata file is located
+#' @param file Character. File name with `.dta` extension.
+#' @param name Character. Name to give ingested data in global environment.
+#' 
+#' @importFrom haven read_data
+load_full <- function(
+    dir,
+    file,
+    name = gsub(pattern = "\\.dta", replacement = "", x = file)
+) {
+
+    df <- haven::read_dta(file = paste0(dir, file))
+
+    assign(
+        x = name,
+        value = df,
+        envir = .GlobalEnv
+    )
+
+}
+
+#' Filter a data frame in place
+#' 
+#' Replace df in environment with a filtered version of it
+#' 
+#' @param name Character. Name of a data frame
+#' @param filter_df Data frame used to filter. Must contain keys `interview__id` and `interview__key`
+#' 
+#' @importFrom dplyr semi_join
+filter_in_place <- function(
+    name,
+    filter_df
+) {
+
+    df_filtered <- base::get(name, envir = .GlobalEnv) |>
+        dplyr::semi_join(filter_df, by = c("interview__id", "interview__key"))
+
+    assign(
+        x = name,
+        value = df_filtered,
+        envir = .GlobalEnv
+    )
+
+}
+
 load_filtered <- function(
     dir,
     file,
@@ -370,14 +419,14 @@ fichier_noms <- c(
     "suso_actions", "suso_errors", "suso_diagnostics", "comments"
 )
 
+# charger toutes les données
 purrr::walk2(
     .x = fichiers, 
     .y = fichier_noms,
-    .f = ~ load_filtered(
+    .f = ~ load_full(
         dir = hh_combined_dir,
         file = .x,
-        name = .y,
-        filter_df = cases_to_review
+        name = .y
     )
 )
 
@@ -471,6 +520,25 @@ interview_metadata <- menages |>
     )
 
 ```
+
+```{r preserve_and_filter_dfs}
+
+# garder la base intégrale
+menages_tous <- menages
+
+# cas à garder cas à garder: les entretiens achevés
+cases_to_keep <- interview_metadata |>
+    dplyr::filter(is_complete == TRUE)
+
+# trier les bases
+purrr::walk(
+    .x = fichier_noms,
+    .f = ~ filter_in_place(
+        name = .x, 
+        filter_df = cases_to_keep
+    )
+)
+
 ```
 
 ```{r create_derived_data, results='hide'}
@@ -501,7 +569,7 @@ purrr::walk(
     .f = ~ load_filtered(
         dir = hh_derived_dir,
         file = .x,
-        filter_df = cases_to_review
+        filter_df = cases_to_keep
     )
 )
 
@@ -604,7 +672,7 @@ echarts4r::e_arrange(gauge_n_menages, gauge_n_dr, rows = 1, cols = 2)
 
 ```{r status_by_ea}
 
-hhold_metadata <- menages |>
+hhold_metadata <- menages_tous |>
     dplyr::select(
         interview__id, interview__key,
         grappe,

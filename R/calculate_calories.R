@@ -71,7 +71,7 @@ calculer_calories <- function(
     menages_df = menages,
 
     # cas à valider
-    cases_df = cases_to_review,
+    cases_df = cases_to_keep,
 
     # taille menage
     taille_df = taille_menage_calculee,
@@ -279,7 +279,7 @@ calories <- haven::read_dta(file = paste0(resource_dir, nom_fichier_calories))
 
 calories_par_item <- calculer_calories(
     menages_df = menages, 
-    cases_df = cases_to_review, 
+    cases_df = cases_to_keep, 
     taille_df = taille_menage_calculee, 
     taille_var = taille_menage, 
     # consommation alimentaire
