@@ -910,6 +910,18 @@ gt::tab_header(title = "Taux de réponse globale") %>%
 gt::fmt_percent(
     columns = c(p_rempli, p_non_rempli)
 ) %>%
+gt::tab_style(
+    style = list(
+        gt::cell_text(
+            style = "italic",
+            color = "red"
+        )
+    ),
+    locations = gt::cells_body(
+        columns = n_rempli,
+        rows = p_rempli < .90
+    )
+) %>%
 gt::cols_merge_n_pct(
     col_n = n_rempli,
     col_pct = p_rempli
@@ -1005,6 +1017,18 @@ gt::gt(rowname_col = "supervisor") %>%
 gt::tab_header(title = "Taux de réponse chez les anciens ménages") %>%
 gt::fmt_percent(
     columns = c(p_rempli, p_non_rempli)
+) %>%
+gt::tab_style(
+    style = list(
+        gt::cell_text(
+            style = "italic",
+            color = "red"
+        )
+    ),
+    locations = gt::cells_body(
+        columns = n_rempli,
+        rows = p_rempli < .90
+    )
 ) %>%
 gt::cols_merge_n_pct(
     col_n = n_rempli,
@@ -1888,6 +1912,18 @@ gt::tab_header(
     subtitle = "Taux l'absence de mesure et motifs"
 ) %>%
 gt::fmt_percent(columns = p_non_gps) %>%
+gt::tab_style(
+    style = list(
+        gt::cell_text(
+            style = "italic",
+            color = "red"
+        )
+    ),
+    locations = gt::cells_body(
+        columns = n_non_gps,
+        rows = p_non_gps < .90
+    )
+) %>%
 gt::cols_merge_n_pct(
     col_n = n_non_gps,
     col_pct = p_non_gps
