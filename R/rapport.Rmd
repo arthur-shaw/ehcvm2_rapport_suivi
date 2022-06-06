@@ -383,7 +383,94 @@ purrr::walk2(
 
 community <- haven::read_dta(file = paste0(comm_combined_dir, params$comm_fichier))
 
-interview_sync_dates <- readxl::read_excel(paste0(sync_dir, "interview_sync_dates.xlsx"))
+```
+
+```{r gather_hh_metadata}
+# =============================================================================
+# Load
+# =============================================================================
+
+# sync date
+interviews_info <- paste0(sync_dir, "interview_sync_dates.xlsx") |>
+    readxl::read_excel() |>
+    dplyr::mutate(
+        date_component = stringr::str_sub(updateDateUtc, start = 1L, end = 10L),
+        suso_update_date = lubridate::ymd(date_component),
+        responsibleName = dplyr::if_else(
+            condition = responsibleRole == "INTERVIEWER",
+            true = responsibleName,
+            false = NA_character_
+        )
+    ) |>
+    dplyr::select(
+        interview__id = id, interview__key = key,
+        suso_update_date, 
+        interviewer = responsibleName, 
+        supervisor = supervisorName
+    )    
+
+# completion date
+interviews_last_completed <- interview_complete(df = suso_actions)
+
+# =============================================================================
+# Compile
+# =============================================================================
+
+# compile metadata
+interview_metadata <- menages |>
+    dplyr::left_join(interviews_info, by = c("interview__id", "interview__key")) |>
+    dplyr::left_join(interviews_last_completed, by = c("interview__id", "interview__key")) |>
+    dplyr::mutate(
+        # entretien achevé
+        is_complete = dplyr::if_else(
+            condition = (
+                # un statut SuSo où jugé potentiellement finalisé
+                (interview__status %in% params$statuses_to_review)
+                &
+                # résultat: achevé
+                (s00q08 %in% c(1, 2))
+                &
+                # toutes les visites faites
+                (visite1 == 1 & visite2 == 2 & visite3 == 3)
+            ),
+            true = TRUE,
+            false = FALSE,
+            missing = FALSE
+        ),
+        # responsable si la personne responsable n'est pas une enquêteur
+        interviewer = dplyr::if_else(
+            condition = is.na(interviewer),
+            true = interviewer_last_complete,
+            false = interviewer
+        ),
+        # date d'achèvement
+        date = lubridate::as_date(date_last_complete),
+        # semaine d'achèvement
+        week = lubridate::floor_date(
+            x = date, 
+            unit = "week", 
+			week_start = getOption("lubridate.week.start", 1)
+        ),
+        # dans la période du rapport
+        report_period = date %within% 
+            lubridate::interval(
+                start = params$rapport_debut, 
+                end = params$rapport_fin
+            )
+    ) |>
+    dplyr::select(
+        # identifiants
+        interview__id, interview__key,
+        # achèvement
+        is_complete,
+        # date
+        date, week, 
+        report_period,
+        # responsable
+        supervisor, interviewer
+    )
+
+```
 ```
 
 ```{r create_derived_data, results='hide'}
@@ -517,25 +604,6 @@ echarts4r::e_arrange(gauge_n_menages, gauge_n_dr, rows = 1, cols = 2)
 
 ```{r status_by_ea}
 
-interviews_last_synced <- interview_sync_dates |>
-    dplyr::mutate(
-        date_component = stringr::str_sub(updateDateUtc, start = 1L, end = 10L),
-        suso_update_date = lubridate::ymd(date_component)
-    ) |>
-    dplyr::select(
-        interview__id = id, interview__key = key,
-        suso_update_date, 
-        interviewer = responsibleName, 
-        supervisor = supervisorName
-    )
-
-interviews_last_completed <- interview_complete(df = suso_actions)
-
-interviews_dates <- cases_to_review |>
-    dplyr::select(interview__id, interview__key) |>
-    dplyr::left_join(interviews_last_synced, by = c("interview__id", "interview__key")) |>
-    dplyr::left_join(interviews_last_completed, by = c("interview__id", "interview__key"))
-
 hhold_metadata <- menages |>
     dplyr::select(
         interview__id, interview__key,
@@ -543,7 +611,7 @@ hhold_metadata <- menages |>
         dplyr::matches("s00q0[1-7]$"),
         s00q08
     ) |>
-    dplyr::left_join(interviews_last_synced, by = c("interview__id", "interview__key")) |>
+    dplyr::left_join(interviews_info, by = c("interview__id", "interview__key")) |>
     dplyr::select(-c(interview__id, interview__key))
 
 hhold_stats <- hhold_metadata |>
@@ -597,7 +665,7 @@ community_metadata <- community |>
         ),
         ea_comm = glue::glue("Région: {fct_s00q01}, Département: {fct_s00q02}, Commune: {fct_s00q03}, Milieu: {fct_s00q04}, ZD: {fct_s00q06}")
     ) |>
-    dplyr::left_join(interviews_last_synced, by = c("interview__id", "interview__key")) |>
+    dplyr::left_join(interviews_info, by = c("interview__id", "interview__key")) |>
     dplyr::select(-c(interview__id, interview__key))
 
 community_stats <- community_metadata |>
@@ -779,12 +847,8 @@ reactable::reactable(
 
 ```{r get_teams_interviews}
 # obtenir les équipes du serveur: superviseurs et leurs enquêteurs
-equipes <- susoapi::get_interviewers(workspace = params$workspace) %>%
-    dplyr::rename(
-        supervisor = SupervisorName,
-        interviewer = UserName
-    ) %>%
-    dplyr::select(supervisor, interviewer)
+equipes <- susoapi::get_supervisors(workspace = params$workspace) %>%
+    dplyr::select(supervisor = UserName)
 
 # obtenir le vecteur de supeviseurs à exclure
 if (params$sup_exclus == "") {
@@ -807,33 +871,12 @@ enqueteur_par_equipe <- equipes %>%
     }
 
 # base des entretiens achevés avec la date de d'achèvement
-enqueteur_par_entretien <- interview_complete(df = suso_actions) %>%
-    dplyr::semi_join(cases_to_review, by = c("interview__id", "interview__key")) |>
-    dplyr::rename_with(
-        .cols = dplyr::matches("_last_complete"),
-        .fn = ~ stringr::str_replace(.x, pattern = "_last_complete", replacement = "")
-    ) |>
-    dplyr::mutate(
-        # date d'achèvement
-        date = lubridate::as_datetime(date),
-        # semaine d'achèvement
-        week = lubridate::floor_date(
-            x = date, 
-            unit = "week", 
-			week_start = getOption("lubridate.week.start", 1)
-        ),
-        # dans la période du rapport
-        report_period = date %within% 
-            lubridate::interval(
-                start = params$rapport_debut, 
-                end = params$rapport_fin
-            )
-    )
+enqueteur_par_entretien <- interview_metadata
 
 equipe_enqueteur_entretien <- enqueteur_par_equipe %>%
-    dplyr::left_join(enqueteur_par_entretien, by = "interviewer")
+    dplyr::left_join(enqueteur_par_entretien, by = "supervisor")
 
-menages_ehcvm1 <- dplyr::filter(menages, s00q07d == 1)
+menages_ehcvm1 <- dplyr::filter(menages_tous, s00q07d == 1)
 ```
 
 # 3. Taux de réponse 
@@ -1966,7 +2009,9 @@ reject_actions <- c(
 )
 
 rejections_count <- equipe_enqueteur_entretien |>
-    dplyr::select(-date) |>
+    # remove date and week of interview completion
+    # date and week vars are created times in actions file
+    dplyr::select(-date, -week) |>
     dplyr::left_join(suso_actions, by = c("interview__id", "interview__key")) |>
     dplyr::mutate(
         rejected = action %in% reject_actions,
