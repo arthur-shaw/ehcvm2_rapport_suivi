@@ -1254,6 +1254,7 @@ taille_menage_trend_overall <- taille_menage_by_interview |>
     dplyr::group_by(week) %>%
     dplyr::summarise(n_membres = median(n_membres, na.rm = TRUE)) |>
     dplyr::ungroup() |>
+    dplyr::filter(!is.na(week) & !is.na(n_membres)) |>
     # series
     dplyr::arrange(week) |>
     dplyr::summarise(taille_trend = list(n_membres)) |>
@@ -1704,6 +1705,7 @@ n_produits_trend_overall <- n_produits_by_interview |>
     dplyr::group_by(week) %>%
     dplyr::summarise(count_produits = median(count_produits, na.rm = TRUE)) |>
     dplyr::ungroup() |>
+    dplyr::filter(!is.na(week) & !is.na(count_produits)) |>
     # series
     dplyr::arrange(week) |>
     dplyr::summarise(n_produits_trend = list(count_produits)) |>
@@ -2155,6 +2157,8 @@ rejections_count <- equipe_enqueteur_entretien |>
 
 rejections_by_group <- rejections_count |>
     dplyr::group_by(supervisor) |>
+    dplyr::filter(!is.na(week), .preserve = TRUE) |> # remove empty weeks but retain groups with only empty weeks
+    dplyr::arrange(week) |>
     dplyr::summarise(
         rejected_this_week = sum(rejected_this_week, na.rm = TRUE),
         rejected_series = list(rejected)
@@ -2162,6 +2166,7 @@ rejections_by_group <- rejections_count |>
     dplyr::ungroup()
 
 rejections_overall <- rejections_count |>
+    dplyr::filter(!is.na(week)) |>
     dplyr::group_by(week) |>
     dplyr::summarise(
         dplyr::across(
@@ -2169,6 +2174,7 @@ rejections_overall <- rejections_count |>
             .fns = ~ sum(.x, na.rm = TRUE)
         )        
     ) |>
+    dplyr::ungroup() |>
     dplyr::arrange(week) |>
     dplyr::summarise(
         rejected_this_week = sum(rejected_this_week, na.rm = TRUE),
