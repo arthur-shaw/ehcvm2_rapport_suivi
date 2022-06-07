@@ -953,8 +953,8 @@ menages_ehcvm1 <- dplyr::filter(menages_tous, s00q07d == 1)
 
 ```{r response_overall}
 reponse_globale_counts <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period == TRUE) %>%
-    dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
+    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
+    dplyr::left_join(menages_tous, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
         n_rempli = s00q08 %in% c(1, 2),
@@ -1060,7 +1060,7 @@ style_table()
 
 ```{r response_panel}
 reponse_anciens_menages_counts <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
     dplyr::inner_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
@@ -1171,6 +1171,12 @@ style_table()
 ```{r hhold_size_all}
 # indicators by interview
 taille_menage_by_interview <- equipe_enqueteur_entretien %>%
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
@@ -1202,7 +1208,7 @@ taille_menage_by_interview <- equipe_enqueteur_entretien %>%
 
 # report week stats
 taille_menage_by_group <- taille_menage_by_interview %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_menages = sum(n_menages, na.rm = TRUE),
@@ -1216,7 +1222,7 @@ taille_menage_by_group <- taille_menage_by_interview %>%
     replace_nan_inf()
     
 taille_menage_overall <- taille_menage_by_interview %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
     dplyr::summarise(
         n_menages = sum(n_menages, na.rm = TRUE),
         minimum = fivenum(n_membres, na.rm = TRUE)[1], 
@@ -1337,7 +1343,12 @@ reactable::reactable(
 
 ```{r hhold_size_panel}
 taille_menage_ancien_counts <- equipe_enqueteur_entretien %>%  
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::semi_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
@@ -1424,7 +1435,12 @@ style_table()
 
 ```{r age_disp}
 age_stats_counts <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
     dplyr::filter((is.na(preload_pid)) | (!is.na(preload_pid) & s01q00a == 1)) %>%
@@ -1532,7 +1548,12 @@ style_table()
 ```{r branche_text}
 
 job_info <- equipe_enqueteur_entretien |>
-    dplyr::filter(report_period == TRUE) |>
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) |>
     dplyr::select(
         interview__id, interview__key, dplyr::matches("__id$"),
@@ -1608,6 +1629,10 @@ reactable::reactable(
 ```{r num_products}
 # counts by interview
 n_produits_by_interview <- equipe_enqueteur_entretien %>%
+    dplyr::filter(
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::left_join(consommation_alimentaire_7d, by = c("interview__id", "interview__key")) %>%
     # create indicator for each non-null record
     dplyr::mutate(
@@ -1627,7 +1652,10 @@ n_produits_by_interview <- equipe_enqueteur_entretien %>%
     
 # report week stats
 n_produits_by_group <- n_produits_by_interview %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) 
+    ) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_entretiens = sum(n_entretiens, na.rm = TRUE),
@@ -1767,7 +1795,12 @@ reactable::reactable(
 
 ```{r calories_total}
 calories_frame <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::left_join(calories_totales, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(n_entretiens = !is.na(interview__id))
 
@@ -1850,7 +1883,12 @@ style_table()
 
 ```{r calories_p_group}
 calories_groupe_counts <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::left_join(calories_par_item, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         groupe = dplyr::case_when(
@@ -1963,7 +2001,12 @@ style_table()
 
 ```{r plot_gps}
 gps_stats_counts <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period == TRUE) %>%
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::left_join(parcelles, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_parcelles = !is.na(parcelles__id),
@@ -2310,6 +2353,12 @@ reactable::reactable(
 
 validation_errors <- suso_errors |>
     dplyr::left_join(equipe_enqueteur_entretien, by = c("interview__id", "interview__key")) |>
+    dplyr::filter(
+        # dans la période du rapport (ou un superviseur sans obs)
+        report_period %in% c(TRUE, NA) & 
+        # entretiens achevés (ou un superviseur sans obs)
+        is_complete %in% c(TRUE, NA)
+    ) %>%
     dplyr::filter(message != "" & !is.na(message)) |>
     dplyr::group_by(message, week) |>
     dplyr::summarise(
