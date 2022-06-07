@@ -958,10 +958,10 @@ reponse_globale_counts <- equipe_enqueteur_entretien %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
         n_rempli = s00q08 %in% c(1, 2),
-        n_non_rempli = s00q08 == 3,
+        n_non_rempli = s00q08 %in% c(3, NA),
         nr_abandon = s00q09 == 1,
-        nr_refus = s00q09 == 1,
-        nr_vacant = s00q09 == 1
+        nr_refus = s00q09 == 2,
+        nr_vacant = s00q09 == 3,
     ) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
@@ -1065,10 +1065,10 @@ reponse_anciens_menages_counts <- equipe_enqueteur_entretien %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
         n_rempli = s00q08 %in% c(1, 2),
-        n_non_rempli = s00q08 == 3,
+        n_non_rempli = s00q08 %in% c(3, NA),
         nr_abandon = s00q09 == 1,
-        nr_refus = s00q09 == 1,
-        nr_vacant = s00q09 == 1
+        nr_refus = s00q09 == 2,
+        nr_vacant = s00q09 == 3,
     ) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
