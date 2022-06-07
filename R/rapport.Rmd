@@ -2111,10 +2111,7 @@ style_table()
 
 ## 10.1 Par équipe
 
-```{r}
-
-# for %within%
-library(lubridate)
+```{r rejection_by_team}
 
 reject_actions <- c(
     7,  # RejectedBySupervisor
