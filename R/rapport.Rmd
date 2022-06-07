@@ -962,13 +962,14 @@ reponse_globale_counts <- equipe_enqueteur_entretien %>%
         nr_abandon = s00q09 == 1,
         nr_refus = s00q09 == 2,
         nr_vacant = s00q09 == 3,
+        nr_sans_motif = n_non_rempli == TRUE & is.na(s00q09)
     ) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         dplyr::across(
             .cols = c(
                 n_entretiens, n_rempli, 
-                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant, nr_sans_motif
             ),
             .fns = ~ sum(.x, na.rm = TRUE)
         )
@@ -993,7 +994,7 @@ reponse_globale_overall <- reponse_globale_counts %>%
         dplyr::across(
             .cols = c(
                 n_entretiens, n_rempli, 
-                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant, nr_sans_motif
             ),
             .fns = ~ sum(.x, na.rm = TRUE)
         )
@@ -1041,13 +1042,18 @@ gt::cols_merge_n_pct(
     col_n = n_non_rempli,
     col_pct = p_non_rempli
 ) %>%
+gt::fmt_number(
+    columns = c(nr_abandon, nr_refus, nr_vacant, nr_sans_motif),
+    scale_by = 100
+) %>%
 gt::cols_label(
     n_entretiens = gt::html("Entretiens<br>(N)"),
     n_rempli = gt::html("Rempli<br>(N)"),
     n_non_rempli = gt::html("Non-rempli<br>(N)"),
     nr_abandon = "Abandon",
     nr_refus = "Refus",
-    nr_vacant = "Vacant"
+    nr_vacant = "Vacant",
+    nr_sans_motif = gt::html("Sans<br>motif")
 ) %>%
 gt::tab_spanner(
     label = "Motif de non-réponse (%)",
@@ -1069,13 +1075,14 @@ reponse_anciens_menages_counts <- equipe_enqueteur_entretien %>%
         nr_abandon = s00q09 == 1,
         nr_refus = s00q09 == 2,
         nr_vacant = s00q09 == 3,
+        nr_sans_motif = n_non_rempli == TRUE & is.na(s00q09)
     ) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         dplyr::across(
             .cols = c(
                 n_entretiens, n_rempli, 
-                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant, nr_sans_motif
             ),
             .fns = ~ sum(.x, na.rm = TRUE)
         )
@@ -1100,7 +1107,7 @@ reponse_anciens_menages_overall <- reponse_anciens_menages_counts %>%
         dplyr::across(
             .cols = c(
                 n_entretiens, n_rempli, 
-                n_non_rempli, nr_abandon, nr_refus, nr_vacant
+                n_non_rempli, nr_abandon, nr_refus, nr_vacant, nr_sans_motif
             ),
             .fns = ~ sum(.x, na.rm = TRUE)
         )
@@ -1149,13 +1156,18 @@ gt::cols_merge_n_pct(
     col_n = n_non_rempli,
     col_pct = p_non_rempli
 ) %>%
+gt::fmt_number(
+    columns = c(nr_abandon, nr_refus, nr_vacant, nr_sans_motif),
+    scale_by = 100
+) %>%
 gt::cols_label(
     n_entretiens = gt::html("Entretiens<br>(N)"),
     n_rempli = gt::html("Rempli<br>(N)"),
     n_non_rempli = gt::html("Non-rempli<br>(N)"),
     nr_abandon = "Abandon",
     nr_refus = "Refus",
-    nr_vacant = "Vacant"
+    nr_vacant = "Vacant",
+    nr_sans_motif = gt::html("Sans<br>motif")    
 ) %>%
 gt::tab_spanner(
     label = "Motif de non-réponse (%)",
@@ -2017,13 +2029,14 @@ gps_stats_counts <- equipe_enqueteur_entretien %>%
         panne = s16Aq48 == 2,
         indisponible = s16Aq48 == 3,
         loin = s16Aq48 == 4,
-        autre = s16Aq48 == 5
+        autre = s16Aq48 == 5,
+        sans_motif = n_non_gps == TRUE & is.na(s16Aq48)
     ) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_entretiens = dplyr::n_distinct(interview__id, na.rm = TRUE),
         dplyr::across(
-            .cols = c(n_parcelles, n_non_gps, petit, panne, indisponible, loin, autre),
+            .cols = c(n_parcelles, n_non_gps, petit, panne, indisponible, loin, autre, sans_motif),
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
@@ -2033,7 +2046,7 @@ gps_stats_by_group <- gps_stats_counts %>%
     dplyr::mutate(
         p_non_gps = n_non_gps / n_parcelles,
         dplyr::across(
-            .cols = c(petit, panne, indisponible, loin, autre),
+            .cols = c(petit, panne, indisponible, loin, autre, sans_motif),
             .fns = ~ .x / n_non_gps
         )
     ) %>%
@@ -2042,14 +2055,14 @@ gps_stats_by_group <- gps_stats_counts %>%
 gps_stats_by_overall <- gps_stats_counts %>%
     dplyr::summarise(
         dplyr::across(
-            .cols = c(n_entretiens, n_parcelles, n_non_gps, petit, panne, indisponible, loin, autre),
+            .cols = c(n_entretiens, n_parcelles, n_non_gps, petit, panne, indisponible, loin, autre, sans_motif),
             .fns = ~ sum(.x, na.rm = TRUE)
         )
     ) %>%
     dplyr::mutate(
         p_non_gps = n_non_gps / n_parcelles,
         dplyr::across(
-            .cols = c(petit, panne, indisponible, loin, autre),
+            .cols = c(petit, panne, indisponible, loin, autre, sans_motif),
             .fns = ~ .x / n_non_gps
         )
     ) %>%
@@ -2092,14 +2105,15 @@ gt::cols_label(
     panne = gt::html("GPS en<br>panne"),
     indisponible = gt::html("Ménage<br>indisponible"),
     loin = gt::html("Trop<br>éloignée"),
-    autre = "Autre"
+    autre = "Autre",
+    sans_motif = gt::html("Sans<br>motif")
 ) %>%
 gt::tab_spanner(
-    columns = c(petit, panne, indisponible, loin, autre),
+    columns = c(petit, panne, indisponible, loin, autre, sans_motif),
     label = "Motif de non-mesure (%)"
 ) %>%
 gt::fmt_number(
-    columns = c(petit, panne, indisponible, loin, autre),
+    columns = c(petit, panne, indisponible, loin, autre, sans_motif),
     decimals = 2,
     scale_by = 100
 ) %>%
