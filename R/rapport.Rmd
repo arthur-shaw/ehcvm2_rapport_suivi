@@ -916,7 +916,19 @@ reactable::reactable(
 ```{r get_teams_interviews}
 # obtenir les équipes du serveur: superviseurs et leurs enquêteurs
 equipes <- susoapi::get_supervisors(workspace = params$workspace) %>%
-    dplyr::select(supervisor = UserName)
+    {
+        if (!"FullName" %in% names(.)) {
+            dplyr::mutate(., FullName = NA_character_)
+        } else if ("FullName" %in% names(.)) {
+            .
+        }
+    } %>%
+    dplyr::mutate(supervisor = dplyr::if_else(
+        condition = !is.na(FullName),
+        true = FullName,
+        false = UserName
+    )) %>%
+    dplyr::select(supervisor)
 
 # obtenir le vecteur de supeviseurs à exclure
 if (params$sup_exclus == "") {
