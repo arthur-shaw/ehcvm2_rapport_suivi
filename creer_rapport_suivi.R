@@ -211,6 +211,15 @@ source(paste0(script_dir, "unpack_and_combine_hhold.R"))
 source(paste0(script_dir, "get_community_data.R"))
 source(paste0(script_dir, "unpack_and_combine_community.R"))
 
+# fusionner la base ZD avec la base communautaire
+comm <- haven::read_dta(paste0(comm_combined_dir, rapport_params$comm_fichier))
+zd <- haven::read_dta(paste0(comm_combined_dir, "zd.dta"))
+comm_avec_zd <- dplyr::left_join(comm, zd, by = c("interview__id", "interview__key"))
+haven::write_dta(
+    data = comm_avec_zd,
+    path = paste0(comm_combined_dir, rapport_params$comm_fichier)
+)
+
 # -----------------------------------------------------------------------------
 # Synchronisation
 # -----------------------------------------------------------------------------
