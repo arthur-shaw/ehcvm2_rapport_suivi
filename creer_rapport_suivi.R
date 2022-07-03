@@ -24,6 +24,11 @@ rapport_params <- list(
     # 130 ApprovedByHeadquarters
     statuses_to_review = c(100, 120, 130),
 
+    # TYPE D'ENQUÊTE
+    # Indiquer l'enquête pour laquelle sortir le rapport de suivi
+    # Valeurs: "panel" ou "transversale"
+    type_enquete = "panel", 
+
     # ECHANTILLONAGE
     # Veuillez fournir quelques informations qui permettront d'informer
     # le progrès global de l'enquête et le progrès au niveau de chaque DR

@@ -10,6 +10,7 @@ params:
   rapport_debut: ""
   rapport_fin: ""
   proj_dir: ""
+  type_enquete: ""
   n_dr: ""
   n_menages_dr: ""
   n_menages_remplacement: ""
@@ -470,6 +471,8 @@ interview_metadata <- menages |>
     dplyr::left_join(interviews_info, by = c("interview__id", "interview__key")) |>
     dplyr::left_join(interviews_last_completed, by = c("interview__id", "interview__key")) |>
     dplyr::mutate(
+        # zone de dénombrement
+        zd = grappe,
         # entretien achevé
         is_complete = dplyr::if_else(
             condition = (
@@ -509,7 +512,7 @@ interview_metadata <- menages |>
     ) |>
     dplyr::select(
         # identifiants
-        interview__id, interview__key,
+        interview__id, interview__key, zd,
         # achèvement
         is_complete,
         # date
@@ -527,8 +530,15 @@ interview_metadata <- menages |>
 menages_tous <- menages
 
 # cas à garder cas à garder: les entretiens achevés
+zd_du_rapport <- dplyr::case_when(
+    params$type_enquete == "transversale" ~ list(1:585),
+    params$type_enquete == "panel" ~ list(586:1185),
+    TRUE ~ list(1:585)
+) |> unlist()
+
 cases_to_keep <- interview_metadata |>
-    dplyr::filter(is_complete == TRUE)
+    dplyr::filter(is_complete == TRUE) |>
+    dplyr::filter(zd %in% zd_du_rapport)
 
 # trier les bases
 purrr::walk(
@@ -538,6 +548,10 @@ purrr::walk(
         filter_df = cases_to_keep
     )
 )
+
+# trier la base communautaire
+community <- community |>
+    dplyr::filter(!!rlang::data_sym(params$grappe_var) %in% zd_du_rapport)
 
 ```
 
@@ -672,7 +686,7 @@ echarts4r::e_arrange(gauge_n_menages, gauge_n_dr, rows = 1, cols = 2)
 
 ```{r status_by_ea}
 
-hhold_metadata <- menages_tous |>
+hhold_metadata <- menages |>
     dplyr::select(
         interview__id, interview__key,
         grappe,
@@ -965,7 +979,7 @@ menages_ehcvm1 <- dplyr::filter(menages_tous, s00q07d == 1)
 
 ```{r response_overall}
 reponse_globale_counts <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
+    dplyr::filter(report_period %in% c(TRUE, NA) & (zd %in% zd_du_rapport)) %>%
     dplyr::left_join(menages_tous, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
@@ -1078,7 +1092,7 @@ style_table()
 
 ```{r response_panel}
 reponse_anciens_menages_counts <- equipe_enqueteur_entretien %>%
-    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
+    dplyr::filter(report_period %in% c(TRUE, NA) & (zd %in% zd_du_rapport)) %>%
     dplyr::inner_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
         n_entretiens = !is.na(interview__id),
@@ -1199,7 +1213,9 @@ taille_menage_by_interview <- equipe_enqueteur_entretien %>%
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans les ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
@@ -1219,7 +1235,7 @@ taille_menage_by_interview <- equipe_enqueteur_entretien %>%
         )
     ) %>%
     # household-level counts
-    dplyr::group_by(interview__id, interview__key, supervisor) %>%
+    dplyr::group_by(interview__id, interview__key, supervisor, zd) %>%
     dplyr::summarise(
         n_menages = dplyr::n_distinct(interview__id, na.rm = TRUE),
         n_membres = sum(n_membres, na.rm = TRUE),
@@ -1232,7 +1248,7 @@ taille_menage_by_interview <- equipe_enqueteur_entretien %>%
 
 # report week stats
 taille_menage_by_group <- taille_menage_by_interview %>%
-    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
+    dplyr::filter((report_period %in% c(TRUE, NA)) & (zd %in% zd_du_rapport)) %>%
     dplyr::group_by(supervisor) %>%
     dplyr::summarise(
         n_menages = sum(n_menages, na.rm = TRUE),
@@ -1246,7 +1262,7 @@ taille_menage_by_group <- taille_menage_by_interview %>%
     replace_nan_inf()
     
 taille_menage_overall <- taille_menage_by_interview %>%
-    dplyr::filter(report_period %in% c(TRUE, NA)) %>%
+    dplyr::filter((report_period %in% c(TRUE, NA)) & (zd %in% zd_du_rapport)) %>%
     dplyr::summarise(
         n_menages = sum(n_menages, na.rm = TRUE),
         minimum = fivenum(n_membres, na.rm = TRUE)[1], 
@@ -1372,7 +1388,9 @@ taille_menage_ancien_counts <- equipe_enqueteur_entretien %>%
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) & 
+        # dans un ZD type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::semi_join(menages_ehcvm1, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
@@ -1464,7 +1482,9 @@ age_stats_counts <- equipe_enqueteur_entretien %>%
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans un ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::left_join(menages, by = c("interview__id", "interview__key")) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) %>%
@@ -1577,7 +1597,9 @@ job_info <- equipe_enqueteur_entretien |>
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans un ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::left_join(membres, by = c("interview__id", "interview__key")) |>
     dplyr::select(
@@ -1656,7 +1678,9 @@ reactable::reactable(
 n_produits_by_interview <- equipe_enqueteur_entretien %>%
     dplyr::filter(
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans un ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::left_join(consommation_alimentaire_7d, by = c("interview__id", "interview__key")) %>%
     # create indicator for each non-null record
@@ -1825,7 +1849,9 @@ calories_frame <- equipe_enqueteur_entretien %>%
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans un ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::left_join(calories_totales, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(n_entretiens = !is.na(interview__id))
@@ -1913,7 +1939,9 @@ calories_groupe_counts <- equipe_enqueteur_entretien %>%
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans un ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::left_join(calories_par_item, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
@@ -2031,7 +2059,9 @@ gps_stats_counts <- equipe_enqueteur_entretien %>%
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans un ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::left_join(parcelles, by = c("interview__id", "interview__key")) %>%
     dplyr::mutate(
@@ -2145,6 +2175,8 @@ reject_actions <- c(
 )
 
 rejections_count <- equipe_enqueteur_entretien |>
+    # dans un ZD du type d'enquête
+    dplyr::filter(zd %in% zd_du_rapport) |>
     # remove date and week of interview completion
     # date and week vars are created times in actions file
     dplyr::select(-date, -week) |>
@@ -2386,7 +2418,9 @@ validation_errors <- suso_errors |>
         # dans la période du rapport (ou un superviseur sans obs)
         report_period %in% c(TRUE, NA) & 
         # entretiens achevés (ou un superviseur sans obs)
-        is_complete %in% c(TRUE, NA)
+        is_complete %in% c(TRUE, NA) &
+        # dans un ZD du type d'enquête
+        (zd %in% zd_du_rapport)
     ) %>%
     dplyr::filter(message != "" & !is.na(message)) |>
     dplyr::group_by(message, week) |>
