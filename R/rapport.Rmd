@@ -1382,7 +1382,11 @@ reactable::reactable(
 
 ## 4.2 Anciens ménages
 
-```{r hhold_size_panel}
+```{r eval_panel}
+is_panel <- (params$type_e == "panel")
+```
+
+```{r hhold_size_panel, eval=is_panel}
 taille_menage_ancien_counts <- equipe_enqueteur_entretien %>%  
     dplyr::filter(
         # dans la période du rapport (ou un superviseur sans obs)
