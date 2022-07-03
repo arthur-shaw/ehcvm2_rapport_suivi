@@ -937,12 +937,15 @@ equipes <- susoapi::get_supervisors(workspace = params$workspace) %>%
             .
         }
     } %>%
-    dplyr::mutate(supervisor = dplyr::if_else(
-        condition = !is.na(FullName),
-        true = FullName,
-        false = UserName
-    )) %>%
-    dplyr::select(supervisor)
+    dplyr::mutate(
+        supervisor = UserName,
+        supervisor_name = dplyr::if_else(
+            condition = !is.na(FullName),
+            true = FullName,
+            false = UserName
+        )
+    ) %>%
+    dplyr::select(supervisor, supervisor_name)
 
 # obtenir le vecteur de supeviseurs à exclure
 if (params$sup_exclus == "") {
@@ -968,7 +971,9 @@ enqueteur_par_equipe <- equipes %>%
 enqueteur_par_entretien <- interview_metadata
 
 equipe_enqueteur_entretien <- enqueteur_par_equipe %>%
-    dplyr::left_join(enqueteur_par_entretien, by = "supervisor")
+    dplyr::left_join(enqueteur_par_entretien, by = "supervisor") |>
+    dplyr::mutate(supervisor = supervisor_name) |>
+    dplyr::select(-supervisor_name)
 
 menages_ehcvm1 <- dplyr::filter(menages_tous, s00q07d == 1)
 ```
