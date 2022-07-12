@@ -264,6 +264,15 @@ if (!file.exists(chemin_comm)) {
 # base contient les colonnes d'identification DR
 community <- haven::read_dta(chemin_comm)
 
+# modifier les variables
+community <- community |>
+    dplyr::rename(
+        s00q02 = Setor,
+        s00q03 = Seccao,
+        s00q04 = Meio,
+        s00q06 = DR
+    )
+
 # check that columns in community data
 geo_id_vars <- c(
     rapport_params$grapp_var,
@@ -285,6 +294,13 @@ if (any(columns_not_community == TRUE)) {
         "chez les paramètres `region_var`, `departement_var`, `commune_var`, `milieu_var`, `dr_var`"
     ))
 }
+
+# sauvegarder la base aux colonnes renommées
+haven::write_dta(
+    data = community,
+    path = paste0(comm_combined_dir, rapport_params$comm_fichier)
+)
+
 
 # =============================================================================
 # Créer le rapport avec les paramètres indiqués ci-haut
