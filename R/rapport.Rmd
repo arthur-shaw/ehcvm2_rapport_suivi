@@ -747,7 +747,7 @@ community_stats <- community_metadata |>
 
 ea_stats <- dplyr::full_join(
         hhold_stats, community_stats, 
-        by = "grappe"
+        by = c("grappe", "s00q01", "s00q02", "s00q03", "s00q04", "s00q06")
     ) |>
     dplyr::mutate(
         ea = dplyr::if_else(
